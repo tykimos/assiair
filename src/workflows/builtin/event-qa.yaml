@@ -1,0 +1,27 @@
+name: event-qa
+description: 행사, 비즈니스, 기술 관련 질문에 답변
+trigger_patterns:
+  - "행사"
+  - "이벤트"
+  - "일정"
+  - "장소"
+  - "프로그램"
+  - "어시웍스"
+  - "제품"
+  - "기술"
+  - "아키텍처"
+  - "오시는 길"
+  - "주차"
+  - "AssiWorks"
+
+steps_natural: "event-qa 스킬로 사용자의 질문에 답변한다. 행사/비즈니스/기술 카테고리를 판별하여 적절한 답변을 제공한다."
+
+steps:
+  - skill_id: event-qa
+    description: 행사/비즈니스/기술 질문에 답변
+    required: true
+    outputs:
+      - category
+      - confidence
+
+completion_message: "더 궁금한 점이 있으시면 편하게 물어보세요!"

@@ -1,0 +1,36 @@
+name: code-review-and-fix
+description: 코드를 리뷰하고 발견된 문제를 자동으로 수정
+trigger_patterns:
+  - "코드 리뷰해줘"
+  - "이 코드 검토해"
+  - "코드 리뷰"
+  - "review this code"
+  - "webhook:github:pull_request"
+
+steps_natural: "code-review로 코드의 버그, 보안, 스타일 문제를 검토한다. 문제가 없으면 종료하고, 이슈가 있으면 code-fix로 수정한 뒤 test-writer로 테스트를 작성한다."
+
+steps:
+  - skill_id: code-review
+    description: 코드의 버그, 보안, 스타일 문제를 검토
+    required: true
+    outputs:
+      - review_result
+      - issues_found
+
+  - skill_id: code-fix
+    description: 발견된 문제를 수정
+    condition: "issues_found > 0"
+    required: false
+    inputs:
+      - review_result
+    outputs:
+      - fix_result
+
+  - skill_id: test-writer
+    description: 수정된 코드에 대한 테스트 작성
+    condition: "fix_result != null"
+    required: false
+    inputs:
+      - fix_result
+
+completion_message: "코드 리뷰 및 수정이 완료되었습니다."

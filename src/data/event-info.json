@@ -1,0 +1,23 @@
+{
+  "name": "AssiWorks 오프닝 이벤트",
+  "date": "2026년 3월 3일 (화)",
+  "time": "14:00 ~ 17:00",
+  "venue": "서울 종로구 광화문 한국Microsoft 본사 13층",
+  "capacity": "130명 한정",
+  "transport": "지하철 5호선 광화문역 2번 출구 도보 5분",
+  "parking": "건물 지하주차장 이용 가능 (유료)",
+  "program": [
+    { "time": "14:00-14:30", "title": "키노트", "description": "어시웍스 플랫폼 비전" },
+    { "time": "14:30-15:10", "title": "Product Roadmap", "description": "어시웍스, 평가 및 추적, 어시루프, 어시벅스와 루프팩토리" },
+    { "time": "15:10-15:30", "title": "Break", "description": "" },
+    { "time": "15:30-16:20", "title": "Technical Report", "description": "아키텍처, AI 파이프라인, 성능 최적화" },
+    { "time": "16:20-17:00", "title": "네트워킹 & Q&A", "description": "" }
+  ],
+  "products": [
+    { "name": "어시웍스 (AssiWorks)", "description": "AI 에이전트 워크플로우 플랫폼. 복잡한 업무를 AI 에이전트가 자동화하고 관리하는 통합 플랫폼." },
+    { "name": "평가 및 추적", "description": "AI 모델 성능 평가 & 프로젝트 추적 도구. 모델 성능을 지속적으로 모니터링하고 프로젝트 진행 상황을 추적." },
+    { "name": "어시루프 (AssiLoop)", "description": "사람-AI 협업 피드백 루프. 사람의 피드백을 AI 학습에 반영하여 지속적으로 성능을 개선." },
+    { "name": "어시벅스 (AssiBugs)", "description": "AI 기반 버그 탐지 도구. 코드와 시스템에서 잠재적 버그를 자동으로 발견하고 보고." },
+    { "name": "루프팩토리 (LoopFactory)", "description": "자동화된 데이터 라벨링 파이프라인. 대규모 데이터셋의 라벨링 작업을 효율적으로 자동화." }
+  ]
+}

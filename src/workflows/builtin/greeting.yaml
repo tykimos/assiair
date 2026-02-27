@@ -1,0 +1,22 @@
+name: greeting
+description: 사용자를 환영하고 목적을 안내
+trigger_patterns:
+  - "안녕"
+  - "시작"
+  - "첫 방문"
+  - "hello"
+  - "hi"
+
+steps_natural: "반드시 greeting 스킬을 먼저 실행하여 즉시 환영 인사를 보여준 뒤, user-lookup 스킬을 항상 실행한다 (condition: null). user 토큰이 있으면 사용자 정보를 조회하여 개인화 메시지와 '공문요청' 버튼을 제공하고, user 토큰이 없으면 토큰 링크로 접속해달라는 안내를 보여준다. 이 순서는 반드시 지켜야 한다."
+
+steps:
+  - skill_id: greeting
+    description: 사용자를 환영하고 주요 기능 안내 (즉시 응답)
+    required: true
+    outputs:
+      - greeting_complete
+  - skill_id: user-lookup
+    description: URL user 토큰으로 사용자 정보 조회 후 개인화 메시지
+    required: false
+
+completion_message: "환영합니다! 무엇을 도와드릴까요?"

@@ -1,0 +1,18 @@
+name: document-request
+description: 공문 PDF 생성
+trigger_patterns:
+  - "공문"
+  - "PDF"
+  - "문서"
+
+steps_natural: "사용자의 문서 요청을 파악한다. 필요한 정보(이름, 소속)를 수집한 후 document-request 스킬로 문서를 생성한다."
+
+steps:
+  - skill_id: document-request
+    description: 문서 생성
+    required: true
+    outputs:
+      - document_type
+      - action
+
+completion_message: "문서 처리가 완료되었습니다."

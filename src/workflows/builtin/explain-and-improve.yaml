@@ -1,0 +1,26 @@
+name: explain-and-improve
+description: 코드를 설명하고 개선점을 제안하여 리팩토링
+trigger_patterns:
+  - "설명해줘"
+  - "이 코드 뭐야"
+  - "코드 설명"
+  - "explain this code"
+  - "what does this code do"
+
+steps_natural: "explain-code로 코드의 동작 원리를 설명한다. 설명이 완료되면 refactor로 코드 품질 개선을 위한 리팩토링을 제안한다."
+
+steps:
+  - skill_id: explain-code
+    description: 코드의 동작 원리를 설명
+    required: true
+    outputs:
+      - explanation_complete
+
+  - skill_id: refactor
+    description: 코드 품질 개선을 위한 리팩토링
+    condition: "explanation_complete == true"
+    required: false
+    inputs:
+      - explanation_complete
+
+completion_message: "코드 설명 및 개선이 완료되었습니다."
