@@ -17,7 +17,7 @@ export function AssiAirWidget(props: AssiAirWidgetProps) {
 }
 
 function WidgetShell({ width, height, className }: { width?: string; height?: string; className?: string }) {
-  const { config } = useWidget();
+  const { config, hasValidToken } = useWidget();
 
   return (
     <div
@@ -35,10 +35,45 @@ function WidgetShell({ width, height, className }: { width?: string; height?: st
         overflow: 'hidden',
       }}
     >
-      <TabNavigation />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <TabContainer />
-      </div>
+      {hasValidToken ? (
+        <>
+          <TabNavigation />
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabContainer />
+          </div>
+        </>
+      ) : (
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem',
+          textAlign: 'center',
+          gap: '1rem',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24,
+          }}>
+            !
+          </div>
+          <div>
+            <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: 4 }}>
+              app 토큰을 확인하세요
+            </p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              URL에 <code style={{ background: 'var(--secondary)', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>app_token</code> 파라미터가 필요합니다.
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+              예: ?app_token=AbCdEf
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

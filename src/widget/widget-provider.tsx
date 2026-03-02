@@ -25,6 +25,8 @@ interface WidgetContextValue {
   serverConfig: ServerConfig | null;
   logs: LogEntry[];
   sessionId: string;
+  /** Whether a valid app_token (or user_token or app param) was provided */
+  hasValidToken: boolean;
   sendMessage: (text: string) => void;
   setActiveTab: (tab: 'chat' | 'settings' | 'logs') => void;
   updateConfig: (updates: Partial<WidgetConfig>) => void;
@@ -208,6 +210,9 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const appRef = useRef<string>(getUrlParam('app') || 'default');
   const userRef = useRef<string>(getUrlParam('user') || 'anonymous');
   const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>(getCodeDefaults());
+  // Token is valid if any of: app_token, user_token, or explicit app param is provided
+  const hasToken = !!(appTokenRef.current || userTokenRef.current || getUrlParam('app'));
+  const [hasValidToken, setHasValidToken] = useState(hasToken);
 
   const [state, dispatch] = useReducer(reducer, {
     messages: [],
@@ -807,6 +812,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
     ...state,
     appDefaultConfig,
     sessionId: sessionIdRef.current,
+    hasValidToken,
     sendMessage,
     setActiveTab,
     updateConfig,
