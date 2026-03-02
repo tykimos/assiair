@@ -210,9 +210,8 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const appRef = useRef<string>(getUrlParam('app') || 'default');
   const userRef = useRef<string>(getUrlParam('user') || 'anonymous');
   const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>(getCodeDefaults());
-  // Token is valid if any of: app_token, user_token, or explicit app param is provided
-  const hasToken = !!(appTokenRef.current || userTokenRef.current || getUrlParam('app'));
-  const [hasValidToken, setHasValidToken] = useState(hasToken);
+  // Start true to avoid SSR/CSR mismatch; set correctly after mount
+  const [hasValidToken, setHasValidToken] = useState(true);
 
   const [state, dispatch] = useReducer(reducer, {
     messages: [],
@@ -254,6 +253,11 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
 
     // Resolve app_token / user_token → app + user, then load config
     const loadFromDb = async () => {
+      // Check if any token or app identifier is provided
+      const hasAnyToken = !!(appTokenRef.current || userTokenRef.current || getUrlParam('app'));
+      setHasValidToken(hasAnyToken);
+      if (!hasAnyToken) return;
+
       // 1. Resolve user_token first (contains both app + user)
       if (userTokenRef.current) {
         try {
