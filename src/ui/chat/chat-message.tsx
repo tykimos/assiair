@@ -167,7 +167,7 @@ function ExecutionMessage({ message, isLast, onButtonClick }: ChatMessageProps) 
   const hasSteps = message.buildingSteps && message.buildingSteps.length > 0;
 
   return (
-    <div className="message-bubble flex flex-col gap-2 items-start max-w-[85%]">
+    <div className="message-bubble flex flex-col gap-2 items-start max-w-[85%] max-sm:max-w-[95%]">
       {/* Building steps — shown when building or alongside content */}
       {hasSteps && !hasContent && (
         <div className="flex flex-col gap-1 px-3 py-2 rounded-xl bg-slate-50 border border-border">
@@ -213,7 +213,7 @@ function UserMessage({ message }: { message: ChatMessage }) {
   return (
     <div className="message-bubble flex justify-end">
       <div
-        className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-sm text-white text-sm"
+        className="max-w-[80%] max-sm:max-w-[90%] px-4 py-2.5 rounded-2xl rounded-br-sm text-white text-sm"
         style={{ background: 'var(--primary)' }}
       >
         <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
@@ -245,7 +245,7 @@ export function ChatMessageComponent({ message, isLast, onButtonClick }: ChatMes
   // Legacy assistant message fallback
   const legacyContent = stripInternalTags(message.content);
   return (
-    <div className="message-bubble flex flex-col gap-2 items-start max-w-[85%]">
+    <div className="message-bubble flex flex-col gap-2 items-start max-w-[85%] max-sm:max-w-[95%]">
       <div className="bg-card-bg border border-border px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
         <div className="prose-chat max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

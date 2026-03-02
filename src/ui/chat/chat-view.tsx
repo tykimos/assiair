@@ -39,7 +39,7 @@ export function ChatView() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 max-sm:px-3 max-sm:py-3 max-sm:space-y-2">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -69,7 +69,7 @@ export function ChatView() {
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-border bg-background px-3 py-3">
+      <div className="border-t border-border bg-background px-3 py-3 max-sm:px-2 max-sm:py-2">
         <form onSubmit={handleSubmit} className="flex gap-2 items-center">
           <input
             ref={inputRef}
