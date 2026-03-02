@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/proxy/rate-limit';
 import { LIMITS } from '../../../config/limits';
 import { getOrchModel, getExecModel } from '@/lib/openai-client';
+import { handleOptions } from '@/lib/cors';
+
+export async function OPTIONS() { return handleOptions(); }
 
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';

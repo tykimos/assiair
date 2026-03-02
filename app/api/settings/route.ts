@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { withCors, handleOptions } from '@/lib/cors';
+
+export async function OPTIONS() { return handleOptions(); }
 
 /** Generate a 6-char alphanumeric token (ambiguous chars excluded) */
 function generateToken(): string {

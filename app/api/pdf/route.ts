@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPdf } from '@/lib/pdf-store';
+import { handleOptions } from '@/lib/cors';
+
+export async function OPTIONS() { return handleOptions(); }
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');

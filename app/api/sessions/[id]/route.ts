@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { handleOptions } from '@/lib/cors';
+
+export async function OPTIONS() { return handleOptions(); }
 
 export async function GET(
   _req: NextRequest,

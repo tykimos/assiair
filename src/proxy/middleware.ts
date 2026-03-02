@@ -3,6 +3,7 @@ import { verifyBearerToken } from './auth';
 import { checkRateLimit } from './rate-limit';
 import { LIMITS } from '../../config/limits';
 import { logAuditEntry } from './audit-log';
+import { withCors } from '@/lib/cors';
 
 export async function withMiddleware(
   request: NextRequest,
@@ -48,5 +49,9 @@ export async function withMiddleware(
     latencyMs: Date.now() - startTime,
   });
 
+  // 5. Add CORS headers
+  if (response instanceof NextResponse) {
+    return withCors(response);
+  }
   return response;
 }
