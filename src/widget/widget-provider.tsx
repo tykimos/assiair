@@ -209,7 +209,13 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const userTokenRef = useRef<string | null>(getUrlParam('user_token'));
   const appRef = useRef<string>(getUrlParam('app') || 'default');
   const userRef = useRef<string>(getUrlParam('user') || 'anonymous');
-  const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>(getCodeDefaults());
+  // Start with empty active lists so Settings UI shows nothing until DB loads
+  const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>({
+    ...getCodeDefaults(),
+    activeSkills: [],
+    activeWorkflows: [],
+    activeTools: [],
+  });
   // Start true to avoid SSR/CSR mismatch; set correctly after mount
   const [hasValidToken, setHasValidToken] = useState(true);
 

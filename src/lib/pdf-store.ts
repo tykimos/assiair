@@ -15,8 +15,9 @@ let counter = 0;
 function getStoreDir(): string {
   /* eslint-disable @typescript-eslint/no-require-imports */
   const path = require('path') as typeof import('path');
+  const os = require('os') as typeof import('os');
   /* eslint-enable @typescript-eslint/no-require-imports */
-  return path.join(process.cwd(), '.next', 'pdf-store');
+  return path.join(os.tmpdir(), 'assiair-pdf-store');
 }
 
 function ensureDir(): void {
