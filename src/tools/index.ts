@@ -13,7 +13,7 @@ import { userLookupTool } from './user-lookup';
 
 export interface ToolImplementation {
   definition: ToolDefinition;
-  execute: (args: Record<string, unknown>) => Promise<unknown>;
+  execute: (args: Record<string, unknown>, toolConfig?: Record<string, unknown>) => Promise<unknown>;
 }
 
 const TOOL_REGISTRY: Record<string, ToolImplementation> = {
@@ -290,18 +290,18 @@ const TOOL_REGISTRY: Record<string, ToolImplementation> = {
       type: 'function' as const,
       function: {
         name: 'user_lookup',
-        description: 'user 토큰으로 registrations 테이블에서 사용자 정보를 조회합니다. context_lookup으로 user를 먼저 얻은 뒤 이 도구에 전달하세요.',
+        description: 'user_token으로 registrations 테이블(air_user_token 필드)에서 사용자 정보를 조회합니다. context_lookup으로 user_token을 먼저 얻은 뒤 이 도구에 전달하세요.',
         parameters: {
           type: 'object',
           properties: {
-            token: { type: 'string', description: 'URL에서 캡처한 user 토큰 값' },
+            token: { type: 'string', description: 'URL에서 캡처한 user_token 값' },
           },
           required: ['token'],
         },
       },
     },
-    execute: async (args: Record<string, unknown>) =>
-      userLookupTool(args.token as string),
+    execute: async (args: Record<string, unknown>, toolConfig?: Record<string, unknown>) =>
+      userLookupTool(args.token as string, toolConfig),
   },
 };
 
@@ -337,8 +337,13 @@ export async function executeTool(
     }
     // Key not in runtimeContext — fall through to regular tool (server singleton)
   }
+
+  // Extract per-tool DB config from runtimeContext
+  const toolConfigs = runtimeContext?.__tool_configs as Record<string, Record<string, unknown>> | undefined;
+  const toolConfig = toolConfigs?.[toolId];
+
   console.log(`[TOOL_EXEC] ${toolId} args:`, JSON.stringify(args));
-  const result = await tool.execute(args);
+  const result = await tool.execute(args, toolConfig);
   console.log(`[TOOL_EXEC] ${toolId} result:`, JSON.stringify(result));
   return result;
 }

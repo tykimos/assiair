@@ -30,14 +30,19 @@ function hasChanges(original: WorkflowDefinition, edit: WorkflowEditState): bool
 }
 
 export function WorkflowManager() {
-  const { config, updateConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig } = useWidget();
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
   const [editStates, setEditStates] = useState<Record<string, WorkflowEditState>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
 
   const registry = useMemo(() => getWorkflowRegistry(), []);
-  const allWorkflows = useMemo(() => registry.getAllDefinitions(), [registry, config.customWorkflows]);
+  // Only show workflows that are active in the app default config
+  const allowedWorkflowNames = useMemo(() => new Set(appDefaultConfig.activeWorkflows), [appDefaultConfig.activeWorkflows]);
+  const allWorkflows = useMemo(
+    () => registry.getAllDefinitions().filter(w => allowedWorkflowNames.has(w.name)),
+    [registry, config.customWorkflows, allowedWorkflowNames],
+  );
 
   const handleExpand = useCallback((name: string) => {
     if (expandedWorkflow === name) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback, useState } from 'react';
 import type { ChatMessage, BuildingStep, Plan, LogEntry, ExecutionSignals, Trigger } from '@/types';
 import type { AssiAirWidgetProps, WidgetConfig, ServerConfig, WidgetEvent } from './widget-types';
 import { AgentLogger } from '@/agent/logger';
@@ -8,7 +8,8 @@ import { AgentController, type StreamEvent } from '@/agent/controller';
 import { getSkillRegistry } from '@/skills/registry';
 import { getWorkflowRegistry } from '@/workflows/registry';
 import { registerCustomTool } from '@/tools';
-import { loadConfig, saveConfig } from '@/storage/config-store';
+import { getCodeDefaults, saveConfigAsync, loadConfigAsync } from '@/storage/config-store';
+import { saveSessionToDb, loadSessionFromDb } from '@/storage/session-store';
 import { cleanContent } from '@/executor/parser';
 import { getContextProviderRegistry } from '@/context/context-registry';
 import { addAllowedDomain } from '../../config/http-allowlist';
@@ -19,13 +20,17 @@ interface WidgetContextValue {
   isStreaming: boolean;
   activeTab: 'chat' | 'settings' | 'logs';
   config: WidgetConfig;
+  /** App default config (admin-managed). Used to determine which items are available to users. */
+  appDefaultConfig: WidgetConfig;
   serverConfig: ServerConfig | null;
   logs: LogEntry[];
+  sessionId: string;
   sendMessage: (text: string) => void;
   setActiveTab: (tab: 'chat' | 'settings' | 'logs') => void;
   updateConfig: (updates: Partial<WidgetConfig>) => void;
   clearLogs: () => void;
   clearMessages: () => void;
+  restoreSession: (sessionId: string) => Promise<void>;
 }
 
 const WidgetContext = createContext<WidgetContextValue | null>(null);
@@ -185,18 +190,31 @@ function getInitialBuildingSteps(skillId?: string): BuildingStep[] {
   ];
 }
 
+function getUrlParam(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
 export function WidgetProvider({ children, props }: { children: React.ReactNode; props: AssiAirWidgetProps }) {
   const loggerRef = useRef<AgentLogger | null>(null);
   const controllerRef = useRef<AgentController | null>(null);
   const conversationStateRef = useRef<ConversationState | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
 
+  // Session & identity tracking
+  const sessionIdRef = useRef<string>(`session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const appTokenRef = useRef<string | null>(getUrlParam('app_token'));
+  const userTokenRef = useRef<string | null>(getUrlParam('user_token'));
+  const appRef = useRef<string>(getUrlParam('app') || 'default');
+  const userRef = useRef<string>(getUrlParam('user') || 'anonymous');
+  const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>(getCodeDefaults());
+
   const [state, dispatch] = useReducer(reducer, {
     messages: [],
     currentPlan: null,
     isStreaming: false,
     activeTab: props.defaultTab || 'chat',
-    config: { maxPlanSteps: 5, maxChainDepth: 5, activeSkills: [], theme: 'light', triggers: [], systemPrompt: '', executorPrompt: '', activeTools: ['vfs_read', 'vfs_write', 'vfs_list', 'vfs_delete', 'js_sandbox', 'python_sandbox', 'http_request'], activeWorkflows: ['greeting', 'code-review-and-fix', 'explain-and-improve'], customSkills: [], customWorkflows: [], customTools: [], contextProviders: [], serviceEndpoints: [], customAllowedDomains: [], ...props.initialConfig },
+    config: { maxPlanSteps: 5, maxChainDepth: 5, activeSkills: [], theme: 'light', triggers: [], systemPrompt: '', executorPrompt: '', activeTools: ['vfs_read', 'vfs_write', 'vfs_list', 'vfs_delete', 'js_sandbox', 'python_sandbox', 'http_request'], activeWorkflows: ['greeting', 'code-review-and-fix', 'explain-and-improve'], customSkills: [], customWorkflows: [], customTools: [], contextProviders: [], serviceEndpoints: [], customAllowedDomains: [], toolConfigs: {}, ...props.initialConfig },
     serverConfig: null,
     logs: [],
   });
@@ -206,11 +224,61 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
     messagesRef.current = state.messages;
   }, [state.messages]);
 
-  // Load config from localStorage on client only (avoids hydration mismatch)
+  // Load config from Supabase (hierarchy: user → app default → code defaults)
   useEffect(() => {
-    const stored = loadConfig();
-    if (props.initialConfig) Object.assign(stored, props.initialConfig);
-    dispatch({ type: 'SET_CONFIG', config: stored });
+    // Check URL for restore session id
+    const restoreId = getUrlParam('restore_session');
+    if (restoreId) {
+      loadSessionFromDb(restoreId).then(session => {
+        if (session) {
+          sessionIdRef.current = session.session_id;
+          const msgs = (session.messages as ChatMessage[]).map(m => ({
+            ...m,
+            timestamp: new Date(m.timestamp),
+          }));
+          dispatch({ type: 'CLEAR_MESSAGES' });
+          for (const msg of msgs) {
+            dispatch({ type: 'ADD_MESSAGE', message: msg });
+          }
+          if (session.config_snapshot && Object.keys(session.config_snapshot as object).length > 0) {
+            dispatch({ type: 'SET_CONFIG', config: session.config_snapshot as WidgetConfig });
+          }
+        }
+      });
+    }
+
+    // Resolve app_token / user_token → app + user, then load config
+    const loadFromDb = async () => {
+      // 1. Resolve user_token first (contains both app + user)
+      if (userTokenRef.current) {
+        try {
+          const res = await fetch(`/api/settings?user_token=${encodeURIComponent(userTokenRef.current)}`);
+          if (res.ok) {
+            const { data } = await res.json();
+            if (data?.app) appRef.current = data.app;
+            if (data?.user) userRef.current = data.user;
+          }
+        } catch { /* fall through */ }
+      }
+      // 2. Resolve app_token (app only)
+      else if (appTokenRef.current) {
+        try {
+          const res = await fetch(`/api/settings?app_token=${encodeURIComponent(appTokenRef.current)}`);
+          if (res.ok) {
+            const { data } = await res.json();
+            if (data?.app) appRef.current = data.app;
+          }
+        } catch { /* fall through */ }
+      }
+      // Load app default config (admin-managed baseline)
+      const appDefConfig = await loadConfigAsync(appRef.current, 'default');
+      setAppDefaultConfig(appDefConfig);
+
+      const dbConfig = await loadConfigAsync(appRef.current, userRef.current);
+      if (props.initialConfig) Object.assign(dbConfig, props.initialConfig);
+      dispatch({ type: 'SET_CONFIG', config: dbConfig });
+    };
+    loadFromDb();
   }, []);
 
   // Initialize logger and controller
@@ -222,7 +290,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
     const workflowRegistry = getWorkflowRegistry();
 
     // Sync active states from persisted config to registries
-    const stored = loadConfig();
+    const stored = getCodeDefaults();
     if (stored.activeSkills) {
       const allDefs = registry.getAllSkillDefinitions();
       for (const def of allDefs) {
@@ -306,7 +374,10 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       systemPrompt: stored.systemPrompt || '',
       executorPrompt: stored.executorPrompt || '',
       activeTools: stored.activeTools,
-      getRuntimeContext: () => contextRegistry.getResolvedContext(),
+      getRuntimeContext: () => ({
+        ...contextRegistry.getResolvedContext(),
+        __tool_configs: stored.toolConfigs || {},
+      }),
     });
     controllerRef.current = controller;
 
@@ -589,6 +660,17 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
         last_workflow_id: pipelineWorkflowId || pipelineSkillId,
         last_skill_id: pipelineSkillId,
       };
+
+      // Auto-save session to Supabase
+      saveSessionToDb({
+        session_id: sessionIdRef.current,
+        app: appRef.current,
+        user: userRef.current,
+        messages: messagesRef.current,
+        config_snapshot: state.config,
+        logs: state.logs.slice(-200),
+        turn_count: turnCount,
+      }).catch(() => { /* silent fail */ });
     } catch (error) {
       dispatch({ type: 'SET_STREAMING', streaming: false });
       dispatch({
@@ -662,7 +744,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const updateConfig = useCallback((updates: Partial<WidgetConfig>) => {
     const newConfig = { ...state.config, ...updates };
     dispatch({ type: 'SET_CONFIG', config: newConfig });
-    saveConfig(newConfig);
+    saveConfigAsync(newConfig, appRef.current, userRef.current).catch(() => { /* silent */ });
 
     // Sync skill registry activeSkills
     if (updates.activeSkills) {
@@ -703,13 +785,34 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
     dispatch({ type: 'CLEAR_MESSAGES' });
   }, []);
 
+  const restoreSession = useCallback(async (targetSessionId: string) => {
+    const session = await loadSessionFromDb(targetSessionId);
+    if (!session) return;
+    sessionIdRef.current = session.session_id;
+    const msgs = (session.messages as ChatMessage[]).map(m => ({
+      ...m,
+      timestamp: new Date(m.timestamp),
+    }));
+    dispatch({ type: 'CLEAR_MESSAGES' });
+    for (const msg of msgs) {
+      dispatch({ type: 'ADD_MESSAGE', message: msg });
+    }
+    if (session.config_snapshot && Object.keys(session.config_snapshot as object).length > 0) {
+      const restored = session.config_snapshot as WidgetConfig;
+      dispatch({ type: 'SET_CONFIG', config: restored });
+    }
+  }, []);
+
   const contextValue: WidgetContextValue = {
     ...state,
+    appDefaultConfig,
+    sessionId: sessionIdRef.current,
     sendMessage,
     setActiveTab,
     updateConfig,
     clearLogs,
     clearMessages,
+    restoreSession,
   };
 
   return (

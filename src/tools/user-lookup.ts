@@ -1,31 +1,42 @@
 import { createClient } from '@supabase/supabase-js';
 import { getContextProviderRegistry } from '@/context/context-registry';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+// Prefer dedicated env vars for user_lookup; fall back to default Supabase
+const DEFAULT_SUPABASE_URL = process.env.USER_LOOKUP_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const DEFAULT_SUPABASE_KEY = process.env.USER_LOOKUP_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
- * Dedicated user lookup tool: takes a chat_token and returns user info
- * from the registrations table. Encapsulates the query logic so the LLM
- * doesn't need to construct the supabase_query call itself.
+ * Dedicated user lookup tool: takes a user_token and returns user info
+ * from the registrations table by matching air_user_token field.
+ *
+ * If toolConfig provides supabase_url / supabase_key, those are used
+ * (for querying an external Supabase project). Otherwise falls back to
+ * the default env-var Supabase connection.
  */
 export async function userLookupTool(
-  token: string
+  token: string,
+  toolConfig?: Record<string, unknown>
 ): Promise<{ ok: boolean; found: boolean; data?: Record<string, unknown>; error?: string }> {
   if (!token || typeof token !== 'string' || token.trim() === '') {
     return { ok: true, found: false, error: 'No token provided' };
   }
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
+  // Use per-tool DB config if provided, otherwise fall back to env vars
+  const supabaseUrl = (toolConfig?.supabase_url as string) || DEFAULT_SUPABASE_URL;
+  const supabaseKey = (toolConfig?.supabase_key as string) || DEFAULT_SUPABASE_KEY;
+  const table = (toolConfig?.table as string) || 'registrations';
+  const lookupField = (toolConfig?.lookup_field as string) || 'air_user_token';
+
+  if (!supabaseUrl || !supabaseKey) {
     return { ok: false, found: false, error: 'Supabase URL or Key is not configured' };
   }
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const { data, error } = await supabase
-      .from('registrations')
+      .from(table)
       .select('*')
-      .eq('chat_token', token.trim())
+      .eq(lookupField, token.trim())
       .limit(1);
 
     if (error) {

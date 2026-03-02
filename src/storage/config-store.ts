@@ -1,9 +1,8 @@
 import type { WidgetConfig } from '@/types';
 import eventInfoData from '@/data/event-info.json';
 
-const CONFIG_KEY = 'assiair-config';
-
-const DEFAULT_CONFIG: WidgetConfig = {
+/** Hard-coded fallback – used only when Supabase has no data at all. */
+const CODE_DEFAULT_CONFIG: WidgetConfig = {
   maxPlanSteps: 5,
   maxChainDepth: 5,
   activeSkills: ['greeting', 'intent-clarify', 'code-review', 'code-fix', 'test-writer', 'explain-code', 'refactor', 'event-qa', 'document-request', 'user-lookup'],
@@ -39,51 +38,113 @@ const DEFAULT_CONFIG: WidgetConfig = {
       id: 'url-token',
       type: 'url_params' as const,
       label: 'URL 토큰',
-      description: 'URL 파라미터에서 app(홈페이지)과 user(사용자) 토큰을 캡처',
+      description: 'URL 파라미터에서 app_token, user_token, app, user를 캡처',
       enabled: true,
-      captureKeys: ['app', 'user'],
+      captureKeys: ['app_token', 'user_token', 'app', 'user'],
       keyMapping: {},
     },
   ],
   serviceEndpoints: [],
   customAllowedDomains: [],
+  toolConfigs: {},
 };
 
-/** IDs of context providers that ship with the app and must always be present. */
-const DEFAULT_PROVIDER_IDS = new Set(DEFAULT_CONFIG.contextProviders.map(p => p.id));
+/** Built-in context provider IDs that must always be present. */
+const BUILTIN_PROVIDER_IDS = new Set(CODE_DEFAULT_CONFIG.contextProviders.map(p => p.id));
 
-export function loadConfig(): WidgetConfig {
-  if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
-  try {
-    const stored = localStorage.getItem(CONFIG_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Partial<WidgetConfig>;
-
-      // Merge contextProviders: ensure default providers are always present
-      const storedProviders = parsed.contextProviders ?? [];
-      const storedProviderIds = new Set(storedProviders.map(p => p.id));
-      const mergedProviders = [
-        ...DEFAULT_CONFIG.contextProviders.filter(dp => !storedProviderIds.has(dp.id)),
-        ...storedProviders,
-      ];
-
-      return { ...DEFAULT_CONFIG, ...parsed, contextProviders: mergedProviders };
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return { ...DEFAULT_CONFIG };
+function mergeConfig(base: WidgetConfig, overrides: Partial<WidgetConfig>): WidgetConfig {
+  const merged = { ...base, ...overrides };
+  // Ensure built-in context providers are always present
+  const overrideProviders = overrides.contextProviders ?? [];
+  const overrideProviderIds = new Set(overrideProviders.map(p => p.id));
+  merged.contextProviders = [
+    ...CODE_DEFAULT_CONFIG.contextProviders.filter(dp => !overrideProviderIds.has(dp.id)),
+    ...overrideProviders,
+  ];
+  return merged;
 }
 
-export function saveConfig(config: WidgetConfig): void {
-  if (typeof window === 'undefined') return;
+// ---------------------------------------------------------------------------
+// Supabase API helpers
+// ---------------------------------------------------------------------------
+
+async function fetchSettingsFromApi(app: string, user: string): Promise<Partial<WidgetConfig> | null> {
   try {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    const res = await fetch(`/api/settings?app=${encodeURIComponent(app)}&user=${encodeURIComponent(user)}`);
+    if (!res.ok) return null;
+    const { data } = await res.json();
+    return (data?.config as Partial<WidgetConfig>) ?? null;
   } catch {
-    console.warn('[ConfigStore] Failed to save config');
+    return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Synchronous load – returns code defaults only.
+ * Used for SSR and initial render before async load completes.
+ */
+export function getCodeDefaults(): WidgetConfig {
+  return { ...CODE_DEFAULT_CONFIG };
+}
+
+/** @deprecated kept only for backward-compatible call-sites that haven't migrated. */
+export function loadConfig(): WidgetConfig {
+  return getCodeDefaults();
+}
+
+/**
+ * Async load with hierarchy:
+ *   1. User-specific setting  (app=X, user=Y)
+ *   2. App default setting    (app=X, user='default')
+ *   3. Code defaults
+ *
+ * User config is merged ON TOP OF app default, so admin-set defaults
+ * are always the base and users only override what they change.
+ */
+export async function loadConfigAsync(app: string = 'default', user: string = 'anonymous'): Promise<WidgetConfig> {
+  // 1. Load app default (admin-managed)
+  const appDefault = await fetchSettingsFromApi(app, 'default');
+  const base = appDefault ? mergeConfig(CODE_DEFAULT_CONFIG, appDefault) : { ...CODE_DEFAULT_CONFIG };
+
+  // 2. If this IS the default user query, we're done
+  if (user === 'default') return base;
+
+  // 3. Load user-specific overrides
+  const userOverrides = await fetchSettingsFromApi(app, user);
+  if (!userOverrides) return base;
+
+  return mergeConfig(base, userOverrides);
+}
+
+/**
+ * Save user-specific config to Supabase.
+ */
+export async function saveConfigAsync(config: WidgetConfig, app: string = 'default', user: string = 'anonymous'): Promise<void> {
+  try {
+    await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app, user, config }),
+    });
+  } catch {
+    console.warn('[ConfigStore] Failed to save config to Supabase');
+  }
+}
+
+/**
+ * Save app-level default config (admin use).
+ */
+export async function saveDefaultConfigAsync(config: WidgetConfig, app: string = 'default'): Promise<void> {
+  return saveConfigAsync(config, app, 'default');
 }
 
 export function getDefaultConfig(): WidgetConfig {
-  return { ...DEFAULT_CONFIG };
+  return { ...CODE_DEFAULT_CONFIG };
 }
+
+// Suppress unused lint
+void BUILTIN_PROVIDER_IDS;

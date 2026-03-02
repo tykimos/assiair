@@ -51,6 +51,14 @@ export interface CustomToolRecord {
   parameters: { name: string; type: string; description: string; required: boolean }[];
 }
 
+/** Per-tool DB connection & query configuration */
+export interface ToolDbConfig {
+  supabase_url: string;
+  supabase_key: string;
+  table?: string;
+  lookup_field?: string;
+}
+
 // User preferences only - NO secrets, NO apiKey
 export interface WidgetConfig {
   maxPlanSteps: number;
@@ -68,6 +76,8 @@ export interface WidgetConfig {
   contextProviders: AnyContextProviderConfig[];
   serviceEndpoints: ServiceEndpointConfig[];
   customAllowedDomains: string[];
+  /** Per-tool DB connection overrides (e.g. user_lookup → external Supabase) */
+  toolConfigs: Record<string, ToolDbConfig>;
 }
 
 // Read-only from GET /api/config

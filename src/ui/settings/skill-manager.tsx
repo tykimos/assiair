@@ -27,14 +27,19 @@ function hasChanges(original: SkillDefinition, edit: SkillEditState): boolean {
 }
 
 export function SkillManager() {
-  const { config, updateConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig } = useWidget();
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
   const [editStates, setEditStates] = useState<Record<string, SkillEditState>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newSkillId, setNewSkillId] = useState('');
 
   const registry = useMemo(() => getSkillRegistry(), []);
-  const allSkills = useMemo(() => registry.getAllSkillDefinitions(), [registry, config.customSkills]);
+  // Only show skills that are active in the app default config
+  const allowedSkillIds = useMemo(() => new Set(appDefaultConfig.activeSkills), [appDefaultConfig.activeSkills]);
+  const allSkills = useMemo(
+    () => registry.getAllSkillDefinitions().filter(s => allowedSkillIds.has(s.meta.skill_id)),
+    [registry, config.customSkills, allowedSkillIds],
+  );
 
   const handleExpand = useCallback((skillId: string) => {
     if (expandedSkill === skillId) {

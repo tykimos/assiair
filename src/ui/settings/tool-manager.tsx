@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useWidget } from '@/widget/widget-provider';
 import { Wrench, ChevronDown, Plus, Trash2, X } from 'lucide-react';
 import { getAllToolIds, getToolMeta, isBuiltinTool, registerCustomTool, removeCustomTool } from '@/tools';
@@ -29,12 +29,14 @@ const EMPTY_FORM: ToolFormData = {
 };
 
 export function ToolManager() {
-  const { config, updateConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig } = useWidget();
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ToolFormData>({ ...EMPTY_FORM });
 
-  const allToolIds = getAllToolIds();
+  // Only show tools that are active in the app default config
+  const allowedToolIds = useMemo(() => new Set(appDefaultConfig.activeTools), [appDefaultConfig.activeTools]);
+  const allToolIds = getAllToolIds().filter(id => allowedToolIds.has(id));
 
   const toggleTool = (toolId: string) => {
     const activeTools = config.activeTools.includes(toolId)
