@@ -27,7 +27,7 @@ function hasChanges(original: SkillDefinition, edit: SkillEditState): boolean {
 }
 
 export function SkillManager() {
-  const { config, updateConfig, appDefaultConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig, appDefaultConfigLoaded } = useWidget();
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
   const [editStates, setEditStates] = useState<Record<string, SkillEditState>>({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -207,10 +207,13 @@ export function SkillManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Skill Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {config.activeSkills.length}/{allSkills.length} active
+          {appDefaultConfigLoaded ? `${config.activeSkills.length}/${allSkills.length} active` : 'Loading...'}
         </span>
       </div>
 
+      {!appDefaultConfigLoaded ? (
+        <div className="text-xs text-text-muted py-4 text-center">Loading skills...</div>
+      ) : (<>
       <div className="space-y-1">
         {allSkills.map(skill => {
           const skillId = skill.meta.skill_id;
@@ -368,6 +371,8 @@ export function SkillManager() {
             <X size={14} />
           </button>
         </div>
+      )}
+      </>
       )}
     </div>
   );

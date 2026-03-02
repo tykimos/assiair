@@ -30,7 +30,7 @@ function hasChanges(original: WorkflowDefinition, edit: WorkflowEditState): bool
 }
 
 export function WorkflowManager() {
-  const { config, updateConfig, appDefaultConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig, appDefaultConfigLoaded } = useWidget();
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
   const [editStates, setEditStates] = useState<Record<string, WorkflowEditState>>({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -186,10 +186,13 @@ export function WorkflowManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Flow Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {config.activeWorkflows.length}/{allWorkflows.length} active
+          {appDefaultConfigLoaded ? `${config.activeWorkflows.length}/${allWorkflows.length} active` : 'Loading...'}
         </span>
       </div>
 
+      {!appDefaultConfigLoaded ? (
+        <div className="text-xs text-text-muted py-4 text-center">Loading flows...</div>
+      ) : (<>
       <div className="space-y-1">
         {allWorkflows.map(workflow => {
           const name = workflow.name;
@@ -359,6 +362,7 @@ export function WorkflowManager() {
           </button>
         </div>
       )}
+      </>)}
     </div>
   );
 }

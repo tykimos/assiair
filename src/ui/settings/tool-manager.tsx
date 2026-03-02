@@ -29,7 +29,7 @@ const EMPTY_FORM: ToolFormData = {
 };
 
 export function ToolManager() {
-  const { config, updateConfig, appDefaultConfig } = useWidget();
+  const { config, updateConfig, appDefaultConfig, appDefaultConfigLoaded } = useWidget();
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ToolFormData>({ ...EMPTY_FORM });
@@ -106,10 +106,13 @@ export function ToolManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Tool Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {config.activeTools.length}/{allToolIds.length} active
+          {appDefaultConfigLoaded ? `${config.activeTools.length}/${allToolIds.length} active` : 'Loading...'}
         </span>
       </div>
 
+      {!appDefaultConfigLoaded ? (
+        <div className="text-xs text-text-muted py-4 text-center">Loading tools...</div>
+      ) : (<>
       <div className="space-y-1">
         {allToolIds.map(toolId => {
           const meta = getToolMeta(toolId);
@@ -301,6 +304,7 @@ export function ToolManager() {
           </button>
         </div>
       )}
+      </>)}
     </div>
   );
 }

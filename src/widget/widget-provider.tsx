@@ -27,6 +27,8 @@ interface WidgetContextValue {
   sessionId: string;
   /** Whether a valid app_token (or user_token or app param) was provided */
   hasValidToken: boolean;
+  /** Whether the app default config has been loaded from DB */
+  appDefaultConfigLoaded: boolean;
   sendMessage: (text: string) => void;
   setActiveTab: (tab: 'chat' | 'settings' | 'logs') => void;
   updateConfig: (updates: Partial<WidgetConfig>) => void;
@@ -218,6 +220,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   });
   // Start true to avoid SSR/CSR mismatch; set correctly after mount
   const [hasValidToken, setHasValidToken] = useState(true);
+  const [appDefaultConfigLoaded, setAppDefaultConfigLoaded] = useState(false);
 
   const [state, dispatch] = useReducer(reducer, {
     messages: [],
@@ -288,6 +291,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       // Load app default config (admin-managed baseline)
       const appDefConfig = await loadConfigAsync(appRef.current, 'default');
       setAppDefaultConfig(appDefConfig);
+      setAppDefaultConfigLoaded(true);
 
       const dbConfig = await loadConfigAsync(appRef.current, userRef.current);
       if (props.initialConfig) Object.assign(dbConfig, props.initialConfig);
@@ -821,6 +825,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const contextValue: WidgetContextValue = {
     ...state,
     appDefaultConfig,
+    appDefaultConfigLoaded,
     sessionId: sessionIdRef.current,
     hasValidToken,
     sendMessage,
