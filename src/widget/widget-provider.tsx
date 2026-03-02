@@ -166,11 +166,7 @@ function buildStepsFromToolState(toolSteps: ToolStepState[], phase: 'init' | 'to
     status: t.done ? 'done' as const : 'running' as const,
     ok: t.done ? t.ok : undefined,
   }));
-  if (phase === 'writing') {
-    steps.push({ step: 'Writing response', status: 'running' });
-  } else {
-    steps.push({ step: 'Write response', status: 'pending' });
-  }
+  steps.push({ step: 'Write response', status: phase === 'writing' ? 'running' : 'pending' });
   return steps;
 }
 
@@ -617,7 +613,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
                   ? buildStepsFromToolState(toolSteps, 'writing')
                   : [
                       { step: 'Preparing', status: 'done' },
-                      { step: 'Writing response', status: 'running' },
+                      { step: 'Write response', status: 'running' },
                     ],
               },
             });
