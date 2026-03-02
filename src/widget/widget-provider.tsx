@@ -267,24 +267,24 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       setHasValidToken(hasAnyToken);
       if (!hasAnyToken) return;
 
-      // 1. Resolve user_token first (contains both app + user)
-      if (userTokenRef.current) {
-        try {
-          const res = await fetch(`/api/settings?user_token=${encodeURIComponent(userTokenRef.current)}`);
-          if (res.ok) {
-            const { data } = await res.json();
-            if (data?.app) appRef.current = data.app;
-            if (data?.user) userRef.current = data.user;
-          }
-        } catch { /* fall through */ }
-      }
-      // 2. Resolve app_token (app only)
-      else if (appTokenRef.current) {
+      // 1. Resolve app_token first (determines which app)
+      if (appTokenRef.current) {
         try {
           const res = await fetch(`/api/settings?app_token=${encodeURIComponent(appTokenRef.current)}`);
           if (res.ok) {
             const { data } = await res.json();
             if (data?.app) appRef.current = data.app;
+          }
+        } catch { /* fall through */ }
+      }
+      // 2. Resolve user_token (determines which user; also sets app if no app_token)
+      if (userTokenRef.current) {
+        try {
+          const res = await fetch(`/api/settings?user_token=${encodeURIComponent(userTokenRef.current)}`);
+          if (res.ok) {
+            const { data } = await res.json();
+            if (!appTokenRef.current && data?.app) appRef.current = data.app;
+            if (data?.user) userRef.current = data.user;
           }
         } catch { /* fall through */ }
       }

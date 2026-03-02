@@ -207,7 +207,7 @@ export function SkillManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Skill Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {appDefaultConfigLoaded ? `${config.activeSkills.length}/${allSkills.length} active` : 'Loading...'}
+          {appDefaultConfigLoaded ? `${config.activeSkills.filter(s => allowedSkillIds.has(s)).length}/${allSkills.length} active` : 'Loading...'}
         </span>
       </div>
 

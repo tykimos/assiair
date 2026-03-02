@@ -106,7 +106,7 @@ export function ToolManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Tool Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {appDefaultConfigLoaded ? `${config.activeTools.length}/${allToolIds.length} active` : 'Loading...'}
+          {appDefaultConfigLoaded ? `${config.activeTools.filter(t => allowedToolIds.has(t)).length}/${allToolIds.length} active` : 'Loading...'}
         </span>
       </div>
 

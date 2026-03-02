@@ -186,7 +186,7 @@ export function WorkflowManager() {
         </div>
         <span className="text-sm font-medium text-foreground">Flow Manager</span>
         <span className="ml-auto text-xs text-text-muted">
-          {appDefaultConfigLoaded ? `${config.activeWorkflows.length}/${allWorkflows.length} active` : 'Loading...'}
+          {appDefaultConfigLoaded ? `${config.activeWorkflows.filter(w => allowedWorkflowNames.has(w)).length}/${allWorkflows.length} active` : 'Loading...'}
         </span>
       </div>
 
