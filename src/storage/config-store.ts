@@ -5,7 +5,7 @@ import eventInfoData from '@/data/event-info.json';
 const CODE_DEFAULT_CONFIG: WidgetConfig = {
   maxPlanSteps: 5,
   maxChainDepth: 5,
-  activeSkills: ['greeting', 'intent-clarify', 'code-review', 'code-fix', 'test-writer', 'explain-code', 'refactor', 'event-qa', 'document-request', 'user-lookup'],
+  activeSkills: ['greeting', 'intent-clarify', 'code-review', 'code-fix', 'test-writer', 'explain-code', 'refactor', 'event-qa', 'document-request', 'user-lookup', 'show-qr'],
   theme: 'light',
   triggers: [
     { id: 'user_message', label: '메시지 입력', description: '사용자가 채팅 메시지를 입력했을 때', enabled: true },
@@ -18,7 +18,7 @@ const CODE_DEFAULT_CONFIG: WidgetConfig = {
   ],
   systemPrompt: '',
   executorPrompt: '',
-  activeTools: ['vfs_read', 'vfs_write', 'vfs_list', 'vfs_delete', 'js_sandbox', 'python_sandbox', 'http_request', 'kb_search', 'generate_document', 'send_email', 'fetch_data', 'context_lookup', 'supabase_query', 'user_lookup'],
+  activeTools: ['vfs_read', 'vfs_write', 'vfs_list', 'vfs_delete', 'js_sandbox', 'python_sandbox', 'http_request', 'kb_search', 'generate_document', 'send_email', 'fetch_data', 'context_lookup', 'supabase_query', 'user_lookup', 'generate_qr'],
   activeWorkflows: ['greeting', 'code-review-and-fix', 'explain-and-improve', 'event-qa', 'document-request'],
   customSkills: [],
   customWorkflows: [],

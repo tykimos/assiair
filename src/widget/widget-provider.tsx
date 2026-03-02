@@ -292,6 +292,30 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       const dbConfig = await loadConfigAsync(appRef.current, userRef.current);
       if (props.initialConfig) Object.assign(dbConfig, props.initialConfig);
       dispatch({ type: 'SET_CONFIG', config: dbConfig });
+
+      // Re-initialize context registry with DB config (may have different providers/endpoints)
+      const contextRegistry = getContextProviderRegistry();
+      await contextRegistry.initialize(
+        dbConfig.contextProviders || [],
+        dbConfig.serviceEndpoints || [],
+        { captureUrlParams: true }
+      );
+
+      // Update controller config with DB values
+      if (controllerRef.current) {
+        const ctrl = controllerRef.current as unknown as Record<string, unknown>;
+        const cfg = ctrl.config as Record<string, unknown> | undefined;
+        if (cfg) {
+          cfg.activeTools = dbConfig.activeTools;
+          cfg.systemPrompt = dbConfig.systemPrompt || '';
+          cfg.executorPrompt = dbConfig.executorPrompt || '';
+        }
+        // Update getRuntimeContext to use fresh context
+        cfg!.getRuntimeContext = () => ({
+          ...contextRegistry.getResolvedContext(),
+          __tool_configs: dbConfig.toolConfigs || {},
+        });
+      }
     };
     loadFromDb();
   }, []);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useWidget } from '@/widget/widget-provider';
 import { Zap, ChevronDown, Plus, Trash2, X } from 'lucide-react';
 import type { TriggerConfig as TriggerConfigType } from '@/types/widget';
@@ -19,8 +19,20 @@ interface TriggerFormData {
 const EMPTY_FORM: TriggerFormData = { id: '', label: '', description: '' };
 
 export function TriggerConfig() {
-  const { config, updateConfig } = useWidget();
-  const triggers = config.triggers || [];
+  const { config, updateConfig, appDefaultConfig, appDefaultConfigLoaded } = useWidget();
+  const allTriggers = config.triggers || [];
+
+  // Only show triggers that are enabled in the app default config
+  const allowedTriggerIds = useMemo(() => {
+    const appTriggers = appDefaultConfig.triggers || [];
+    return new Set(appTriggers.filter(t => t.enabled).map(t => t.id));
+  }, [appDefaultConfig.triggers]);
+
+  const triggers = useMemo(
+    () => allTriggers.filter(t => allowedTriggerIds.has(t.id)),
+    [allTriggers, allowedTriggerIds]
+  );
+
   const [expandedTrigger, setExpandedTrigger] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTrigger, setEditingTrigger] = useState<string | null>(null);
@@ -28,7 +40,7 @@ export function TriggerConfig() {
   const [form, setForm] = useState<TriggerFormData>({ ...EMPTY_FORM });
 
   const toggleTrigger = (id: string) => {
-    const updated = triggers.map(t =>
+    const updated = allTriggers.map(t =>
       t.id === id ? { ...t, enabled: !t.enabled } : t
     );
     updateConfig({ triggers: updated });
@@ -37,7 +49,7 @@ export function TriggerConfig() {
   const handleSave = () => {
     if (!form.id.trim() || !form.label.trim()) return;
 
-    const existingTrigger = editingTrigger ? triggers.find(t => t.id === editingTrigger) : null;
+    const existingTrigger = editingTrigger ? allTriggers.find(t => t.id === editingTrigger) : null;
     const record: TriggerConfigType = {
       id: form.id.trim(),
       label: form.label.trim(),
@@ -47,9 +59,9 @@ export function TriggerConfig() {
 
     let updated: TriggerConfigType[];
     if (editingTrigger) {
-      updated = triggers.map(t => t.id === editingTrigger ? record : t);
+      updated = allTriggers.map(t => t.id === editingTrigger ? record : t);
     } else {
-      updated = [...triggers, record];
+      updated = [...allTriggers, record];
     }
     updateConfig({ triggers: updated });
 
@@ -60,7 +72,7 @@ export function TriggerConfig() {
   };
 
   const handleEdit = (id: string) => {
-    const t = triggers.find(t => t.id === id);
+    const t = allTriggers.find(t => t.id === id);
     if (!t) return;
     setForm({ id: t.id, label: t.label, description: t.description });
     setEditingTrigger(id);
@@ -69,7 +81,7 @@ export function TriggerConfig() {
   };
 
   const handleDelete = (id: string) => {
-    updateConfig({ triggers: triggers.filter(t => t.id !== id) });
+    updateConfig({ triggers: allTriggers.filter(t => t.id !== id) });
   };
 
   const handleCancel = () => {
@@ -90,10 +102,13 @@ export function TriggerConfig() {
         </div>
         <span className="text-sm font-medium text-foreground">Trigger Settings</span>
         <span className="ml-auto text-xs text-text-muted">
-          {triggers.filter(t => t.enabled).length}/{triggers.length} active
+          {appDefaultConfigLoaded ? `${triggers.filter(t => t.enabled).length}/${triggers.length} active` : 'Loading...'}
         </span>
       </div>
 
+      {!appDefaultConfigLoaded ? (
+        <div className="text-xs text-text-muted py-4 text-center">Loading triggers...</div>
+      ) : (<>
       <div className="space-y-1">
         {triggers.map(trigger => {
           const isExpanded = expandedTrigger === trigger.id;
@@ -190,6 +205,7 @@ export function TriggerConfig() {
           <span>Add Trigger</span>
         </button>
       )}
+      </>)}
 
       {/* Inline form */}
       {showForm && (

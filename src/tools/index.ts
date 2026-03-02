@@ -10,6 +10,7 @@ import { fetchDataTool } from './fetch-data';
 import { contextLookupTool } from './context-lookup';
 import { supabaseQueryTool } from './supabase-query';
 import { userLookupTool } from './user-lookup';
+import { generateQrTool } from './generate-qr';
 
 export interface ToolImplementation {
   definition: ToolDefinition;
@@ -302,6 +303,24 @@ const TOOL_REGISTRY: Record<string, ToolImplementation> = {
     },
     execute: async (args: Record<string, unknown>, toolConfig?: Record<string, unknown>) =>
       userLookupTool(args.token as string, toolConfig),
+  },
+  generate_qr: {
+    definition: {
+      type: 'function' as const,
+      function: {
+        name: 'generate_qr',
+        description: '텍스트를 QR 코드 이미지(base64 data URL)로 변환합니다. registrations 테이블의 reg_token 등을 QR로 보여줄 때 사용합니다.',
+        parameters: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: 'QR 코드에 인코딩할 텍스트' },
+          },
+          required: ['text'],
+        },
+      },
+    },
+    execute: async (args: Record<string, unknown>) =>
+      generateQrTool(args.text as string),
   },
 };
 

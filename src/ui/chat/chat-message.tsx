@@ -50,8 +50,21 @@ function PdfDownloadButton({ href, filename }: { href: string; filename: string 
   );
 }
 
-/** Custom ReactMarkdown components: renders PDF links as download buttons */
+/** Custom ReactMarkdown components: renders PDF links as download buttons, QR images inline */
 const markdownComponents: React.ComponentProps<typeof ReactMarkdown>['components'] = {
+  img: ({ src, alt }) => {
+    if (src) {
+      return (
+        <img
+          src={src}
+          alt={alt || ''}
+          className="inline-block my-2 rounded-lg"
+          style={{ maxWidth: '200px', height: 'auto' }}
+        />
+      );
+    }
+    return null;
+  },
   a: ({ href, children }) => {
     const isPdf = href && (
       href.startsWith('data:application/pdf') ||
