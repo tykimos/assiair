@@ -37,10 +37,11 @@ signals:
 - QR 생성 성공 시 (`ok: true`):
   - signals: `{ "qr_generated": "true", "confidence": "high" }`
   - step_result: `{ "reg_token": "<토큰값>" }`
-  - **반드시** 마크다운 이미지 문법으로 QR을 표시합니다:
+  - `generate_qr` 도구의 결과에서 `image_url` 값을 사용하여 **반드시** 마크다운 이미지 문법으로 QR을 표시합니다:
     ```
-    ![등록 QR](data_url값)
+    ![등록 QR](/api/image?id=xxx)
     ```
+  - `image_url` 값을 그대로 사용하세요. 절대 수정하지 마세요.
   - QR 아래에 간단한 안내 메시지를 추가합니다. 예: "등록 QR 코드입니다. 현장에서 이 QR을 보여주세요!"
 - 사용자 미확인 시:
   - "QR 코드를 보여드리려면 먼저 토큰 링크로 접속해주세요 😊" 와 같이 안내합니다.

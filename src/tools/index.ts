@@ -309,7 +309,7 @@ const TOOL_REGISTRY: Record<string, ToolImplementation> = {
       type: 'function' as const,
       function: {
         name: 'generate_qr',
-        description: '텍스트를 QR 코드 이미지(base64 data URL)로 변환합니다. registrations 테이블의 reg_token 등을 QR로 보여줄 때 사용합니다.',
+        description: '텍스트를 QR 코드 이미지로 변환합니다. 결과의 image_url을 마크다운 이미지에 사용하세요: ![QR](image_url값)',
         parameters: {
           type: 'object',
           properties: {
