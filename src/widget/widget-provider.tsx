@@ -202,8 +202,8 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const conversationStateRef = useRef<ConversationState | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
 
-  // Session & identity tracking
-  const sessionIdRef = useRef<string>(`session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  // Session & identity tracking — use URL param if provided, otherwise generate
+  const sessionIdRef = useRef<string>(getUrlParam('session_id') || `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const appTokenRef = useRef<string | null>(getUrlParam('app_token'));
   const userTokenRef = useRef<string | null>(getUrlParam('user_token'));
   const appRef = useRef<string>(getUrlParam('app') || 'default');
