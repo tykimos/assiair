@@ -13,6 +13,7 @@ import { saveSessionToDb, loadSessionFromDb } from '@/storage/session-store';
 import { cleanContent } from '@/executor/parser';
 import { getContextProviderRegistry } from '@/context/context-registry';
 import { addAllowedDomain } from '../../config/http-allowlist';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface WidgetContextValue {
   messages: ChatMessage[];
@@ -775,6 +776,113 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       runPipeline(trigger, hookLabel);
     }, 300);
   }, [state.config.triggers, runPipeline]);
+
+  // Supabase Realtime: subscribe to webhook_messages inserts for this session
+  const webhookQueueRef = useRef<Array<{ message_id: string; message: string; context: Record<string, unknown> }>>([]);
+  const processingWebhookRef = useRef(false);
+
+  const processWebhookQueue = useCallback(async () => {
+    if (processingWebhookRef.current || webhookQueueRef.current.length === 0) return;
+    if (state.isStreaming || !controllerRef.current) return;
+
+    processingWebhookRef.current = true;
+    const whMsg = webhookQueueRef.current.shift()!;
+
+    // Add user message to chat
+    dispatch({
+      type: 'ADD_MESSAGE',
+      message: {
+        id: `msg_${Date.now()}_user`,
+        role: 'user',
+        content: whMsg.message,
+        messageType: 'user',
+        timestamp: new Date(),
+      },
+    });
+
+    // Build trigger with context
+    const trigger: Trigger = {
+      type: 'webhook',
+      source: 'webhook_message',
+      payload: {
+        message: whMsg.message,
+        event_kind: 'webhook_message',
+        data: whMsg.context || {},
+      },
+      timestamp: Date.now(),
+      session_id: sessionIdRef.current,
+    };
+
+    const contextSummary = whMsg.context
+      ? Object.entries(whMsg.context)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join(', ')
+      : '';
+    const hookLabel = contextSummary
+      ? `웹훅 수신 — ${contextSummary.slice(0, 100)}`
+      : '웹훅 수신';
+
+    try {
+      await runPipeline(trigger, hookLabel);
+    } finally {
+      processingWebhookRef.current = false;
+      // Process next queued message if any
+      if (webhookQueueRef.current.length > 0) {
+        processWebhookQueue();
+      }
+    }
+  }, [state.isStreaming, runPipeline]);
+
+  useEffect(() => {
+    const webhookTriggerConfig = state.config.triggers?.find(t => t.id === 'webhook');
+    if (!webhookTriggerConfig?.enabled) return;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channelName = `webhook_messages_${sessionIdRef.current}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'webhook_messages',
+          filter: `session_id=eq.${sessionIdRef.current}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            message_id: string;
+            message: string;
+            context: Record<string, unknown>;
+            status: string;
+          };
+          if (row.status !== 'pending') return;
+
+          // Mark as consumed immediately
+          supabase
+            .from('webhook_messages')
+            .update({ status: 'consumed', consumed_at: new Date().toISOString() })
+            .eq('message_id', row.message_id)
+            .then(() => { /* silent */ });
+
+          // Queue and process
+          webhookQueueRef.current.push({
+            message_id: row.message_id,
+            message: row.message,
+            context: row.context,
+          });
+          processWebhookQueue();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state.config.triggers, processWebhookQueue]);
 
   const setActiveTab = useCallback((tab: 'chat' | 'settings' | 'logs') => {
     dispatch({ type: 'SET_TAB', tab });

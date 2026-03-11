@@ -51,6 +51,9 @@ export function buildContextPack(params: {
     `- source: ${trigger.source}`,
     `- message: "${trigger.payload.message || ''}"`,
     `- timestamp: ${trigger.timestamp}`,
+    ...(trigger.payload.data && Object.keys(trigger.payload.data).length > 0
+      ? [`- data: ${truncateToTokenBudget(JSON.stringify(trigger.payload.data), 1000)}`]
+      : []),
     '',
     '[Plan] (required)',
     `- goal: "${plan.goal}"`,
