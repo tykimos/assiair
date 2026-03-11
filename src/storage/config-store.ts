@@ -1,5 +1,4 @@
 import type { WidgetConfig } from '@/types';
-import eventInfoData from '@/data/event-info.json';
 
 /** Hard-coded fallback – used only when Supabase has no data at all. */
 const CODE_DEFAULT_CONFIG: WidgetConfig = {
@@ -24,16 +23,6 @@ const CODE_DEFAULT_CONFIG: WidgetConfig = {
   customWorkflows: [],
   customTools: [],
   contextProviders: [
-    {
-      id: 'event-info',
-      type: 'static_data' as const,
-      label: '행사 정보',
-      description: 'AssiWorks 오프닝 이벤트 기본 정보',
-      enabled: true,
-      data: {
-        'event-info': eventInfoData,
-      },
-    },
     {
       id: 'url-token',
       type: 'url_params' as const,
