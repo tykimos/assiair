@@ -14,6 +14,7 @@ import eventQaSkill from './builtin/event-qa.md';
 import documentRequestSkill from './builtin/document-request.md';
 import userLookupSkill from './builtin/user-lookup.md';
 import showQrSkill from './builtin/show-qr.md';
+import reportSummarySkill from './builtin/report-summary.md';
 
 const BUILTIN_SKILLS: Record<string, string> = {
   'greeting.md': greetingSkill,
@@ -27,6 +28,7 @@ const BUILTIN_SKILLS: Record<string, string> = {
   'document-request.md': documentRequestSkill,
   'user-lookup.md': userLookupSkill,
   'show-qr.md': showQrSkill,
+  'report-summary.md': reportSummarySkill,
 };
 
 export class SkillRegistryManager {
