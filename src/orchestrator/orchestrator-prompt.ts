@@ -81,13 +81,16 @@ export function buildDynamicSections(
   return `\n\n## 사용 가능한 Workflows\n${workflowList || '(없음)'}\n\n## 사용 가능한 Skills\n${skillList || '(없음)'}`;
 }
 
-/** Build the full orchestrator prompt: base (possibly overridden) + dynamic sections */
+/** Build the full orchestrator prompt: base + optional app context + dynamic sections */
 export function buildOrchestratorPrompt(
   workflows: WorkflowDefinition[],
   skillSummaries: SkillMeta[],
-  baseOverride?: string
+  appSystemPrompt?: string
 ): string {
-  const base = baseOverride || ORCHESTRATOR_DEFAULT_BASE;
   const dynamic = buildDynamicSections(workflows, skillSummaries);
-  return base + dynamic;
+  // App system prompt is appended as additional context, never replaces the base
+  const appContext = appSystemPrompt
+    ? `\n\n## 앱 컨텍스트\n${appSystemPrompt}`
+    : '';
+  return ORCHESTRATOR_DEFAULT_BASE + appContext + dynamic;
 }
