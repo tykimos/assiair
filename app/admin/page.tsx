@@ -698,10 +698,6 @@ function SettingsSection() {
   const [showNewApp, setShowNewApp] = useState(false);
   const [newAppName, setNewAppName] = useState('');
   const [newAppJson, setNewAppJson] = useState('{\n  "theme": "light",\n  "maxPlanSteps": 5\n}');
-  const [showNewUser, setShowNewUser] = useState(false);
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserJson, setNewUserJson] = useState('{\n  \n}');
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [viewMode, setViewMode] = useState<'json' | 'gui'>('gui');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -758,25 +754,6 @@ function SettingsSection() {
     }
   };
 
-  const createUserSetting = async () => {
-    if (!selectedApp || !newUserName.trim()) { setStatusMsg('사용자 이름을 입력하세요.'); return; }
-    try {
-      const config = JSON.parse(newUserJson);
-      await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app: selectedApp, user: newUserName.trim(), config }),
-      });
-      setShowNewUser(false);
-      setNewUserName('');
-      setNewUserJson('{\n  \n}');
-      setStatusMsg(`사용자 "${newUserName.trim()}" 설정이 추가되었습니다.`);
-      fetchSettings();
-    } catch {
-      setStatusMsg('잘못된 JSON 형식입니다.');
-    }
-  };
-
   // GUI mode helpers
   const handleGuiChange = (itemId: string, newConfig: Record<string, unknown>) => {
     setGuiDraft(newConfig);
@@ -810,7 +787,6 @@ function SettingsSection() {
   // Derive app list from settings with user='default'
   const appDefaults = settings.filter(item => item.user === 'default');
   const selectedAppDefault = selectedApp ? settings.find(item => item.app === selectedApp && item.user === 'default') : null;
-  const selectedAppUsers = selectedApp ? settings.filter(item => item.app === selectedApp && item.user !== 'default') : [];
 
   const renderJsonEditor = (item: SettingsItem, label: string) => {
     const editing = editingId === item.id;
@@ -920,7 +896,6 @@ function SettingsSection() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.6rem' }}>
               {appDefaults.map(item => {
-                const userCount = settings.filter(si => si.app === item.app && si.user !== 'default').length;
                 return (
                   <div
                     key={item.id}
@@ -957,7 +932,6 @@ function SettingsSection() {
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: '0.6rem', fontSize: '0.78rem', color: '#5d6698' }}>
-                      <span>사용자 {userCount}명</span>
                       <span>{timeAgo(item.updated_at)}</span>
                     </div>
                     <button
@@ -992,7 +966,7 @@ function SettingsSection() {
 
       {/* Back button */}
       <button
-        onClick={() => { setSelectedApp(null); setEditingId(null); setShowNewUser(false); setStatusMsg(''); }}
+        onClick={() => { setSelectedApp(null); setEditingId(null); setStatusMsg(''); }}
         style={{
           border: 0, background: 'none', color: '#636bff', cursor: 'pointer',
           fontSize: '0.85rem', fontWeight: 600, padding: '0.3rem 0', marginBottom: '0.6rem',
@@ -1083,232 +1057,6 @@ function SettingsSection() {
         )}
       </article>
 
-      {/* Users of this app */}
-      <article style={s.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '1rem', color: '#202753' }}>
-              사용자별 설정
-              <span style={{ fontWeight: 400, fontSize: '0.82rem', color: '#8f97c2', marginLeft: 8 }}>
-                {selectedAppUsers.length}명
-              </span>
-            </h4>
-            <p style={{ margin: '0.15rem 0 0', color: '#5d6698', fontSize: '0.8rem' }}>
-              앱 기본 설정 위에 덮어씌워지는 사용자 개인화 설정입니다.
-            </p>
-          </div>
-          <button onClick={() => { setShowNewUser(!showNewUser); }} style={s.btnAdd}>+ 사용자 추가</button>
-        </div>
-
-        {showNewUser && (
-          <div style={{ marginBottom: '0.7rem', border: '2px solid rgba(99, 107, 255, 0.4)', borderRadius: 12, padding: '0.8rem', background: 'rgba(99, 107, 255, 0.03)' }}>
-            <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', marginBottom: '0.6rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333a66' }}>사용자:</label>
-              <input value={newUserName} onChange={e => setNewUserName(e.target.value)} style={{ ...s.input, width: 200 }} placeholder="user-id" />
-              <span style={{ fontSize: '0.78rem', color: '#5d6698' }}>앱: {selectedApp}</span>
-            </div>
-            <textarea
-              value={newUserJson}
-              onChange={e => setNewUserJson(e.target.value)}
-              style={{
-                width: '100%', minHeight: 120,
-                fontFamily: 'monospace', fontSize: '0.82rem',
-                padding: '0.8rem', borderRadius: 12,
-                border: '1px solid rgba(72, 84, 172, 0.3)',
-                color: '#111532', background: '#fff',
-                resize: 'vertical', outline: 'none',
-                boxSizing: 'border-box',
-              }}
-              placeholder='{ "theme": "dark" }'
-            />
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowNewUser(false)} style={s.btnSecondary}>취소</button>
-              <button onClick={createUserSetting} style={s.btnPrimary}>추가</button>
-            </div>
-          </div>
-        )}
-
-        {selectedAppUsers.length === 0 ? (
-          <p style={{ color: '#7480ad', fontSize: '0.84rem', textAlign: 'center', padding: 24 }}>
-            이 앱에 등록된 사용자 설정이 없습니다.
-          </p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={s.th}>사용자</th>
-                  <th style={s.th}>설정 키</th>
-                  <th style={s.th}>수정일</th>
-                  <th style={s.th}>관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedAppUsers.map(item => {
-                  const isExpanded = expandedUserId === item.id;
-                  const isEditing = editingId === item.id;
-                  const configKeys = Object.keys(item.config);
-                  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                  const appTk = selectedAppDefault?.token;
-                  const userTk = item.token;
-                  // app_token + user_token 둘 다 URL에 포함
-                  const params: string[] = [];
-                  if (appTk) params.push(`app_token=${appTk}`);
-                  else params.push(`app=${encodeURIComponent(item.app)}`);
-                  if (userTk) params.push(`user_token=${userTk}`);
-                  else params.push(`user=${encodeURIComponent(item.user)}`);
-                  const serviceUrl = `${origin}/?${params.join('&')}`;
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr
-                        onClick={() => { setExpandedUserId(isExpanded ? null : item.id); if (isEditing) setEditingId(null); }}
-                        style={{ cursor: 'pointer', background: isExpanded ? 'rgba(99,107,255,0.04)' : undefined }}
-                      >
-                        <td style={{ ...s.td, fontWeight: 600 }}>{item.user}</td>
-                        <td style={{ ...s.td, fontSize: '0.78rem', color: '#5d6698' }}>
-                          {configKeys.slice(0, 4).join(', ')}{configKeys.length > 4 ? ` +${configKeys.length - 4}` : ''}
-                        </td>
-                        <td style={s.td}>{timeAgo(item.updated_at)}</td>
-                        <td style={{ ...s.td, whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'flex', gap: '0.3rem' }}>
-                            {viewMode === 'json' && (
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  if (isEditing) { setEditingId(null); }
-                                  else { setEditingId(item.id); setEditJson(JSON.stringify(item.config, null, 2)); setExpandedUserId(item.id); }
-                                }}
-                                style={s.btnSmall}
-                              >
-                                {isEditing ? '취소' : '수정'}
-                              </button>
-                            )}
-                            <button
-                              onClick={e => { e.stopPropagation(); window.open(serviceUrl, '_blank'); }}
-                              style={{ ...s.btnSmall, background: 'linear-gradient(90deg, #636bff, #404dff)', color: '#fff', border: 'none' }}
-                            >
-                              사용하기
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: '0.4rem 0.6rem 0.1rem', background: 'rgba(99,107,255,0.02)', borderBottom: 'none' }}>
-                            {/* Token display */}
-                            <div style={{
-                              display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap',
-                              padding: '0.4rem 0.6rem', borderRadius: 8,
-                              background: 'rgba(13, 18, 63, 0.04)', marginBottom: '0.3rem',
-                            }}>
-                              <span style={{ fontSize: '0.72rem', color: '#5d6698', fontWeight: 600 }}>토큰:</span>
-                              {selectedAppDefault?.token && (
-                                <span style={{
-                                  fontSize: '0.72rem', fontFamily: 'monospace', background: 'rgba(99,107,255,0.1)',
-                                  color: '#404dff', padding: '0.15rem 0.45rem', borderRadius: 6,
-                                }}>
-                                  app_token={selectedAppDefault.token}
-                                </span>
-                              )}
-                              {item.token && (
-                                <span style={{
-                                  fontSize: '0.72rem', fontFamily: 'monospace', background: 'rgba(255,152,0,0.1)',
-                                  color: '#e65100', padding: '0.15rem 0.45rem', borderRadius: 6,
-                                }}>
-                                  user_token={item.token}
-                                </span>
-                              )}
-                              <span style={{
-                                fontSize: '0.72rem', fontFamily: 'monospace', background: 'rgba(30,126,52,0.1)',
-                                color: '#1e7e34', padding: '0.15rem 0.45rem', borderRadius: 6,
-                              }}>
-                                user={item.user}
-                              </span>
-                              <button
-                                onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(serviceUrl); setStatusMsg('링크가 복사되었습니다.'); }}
-                                style={{ ...s.btnSmall, fontSize: '0.7rem', marginLeft: 'auto' }}
-                              >
-                                링크 복사
-                              </button>
-                            </div>
-                            {/* Full URL display */}
-                            <div style={{
-                              padding: '0.3rem 0.6rem', borderRadius: 6,
-                              background: 'rgba(13, 18, 63, 0.03)', marginBottom: '0.3rem',
-                              fontFamily: 'monospace', fontSize: '0.68rem', color: '#5d6698',
-                              wordBreak: 'break-all', lineHeight: 1.5,
-                            }}>
-                              {serviceUrl}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: '0 0.6rem 0.6rem', background: 'rgba(99,107,255,0.02)' }}>
-                            {viewMode === 'json' ? (
-                              isEditing ? (
-                                <div>
-                                  <textarea
-                                    value={editJson}
-                                    onChange={e => setEditJson(e.target.value)}
-                                    onClick={e => e.stopPropagation()}
-                                    style={{
-                                      width: '100%', minHeight: 180,
-                                      fontFamily: 'monospace', fontSize: '0.82rem',
-                                      padding: '0.8rem', borderRadius: 10,
-                                      border: '1px solid rgba(72, 84, 172, 0.3)',
-                                      color: '#111532', background: '#fff',
-                                      resize: 'vertical', outline: 'none',
-                                      boxSizing: 'border-box', marginTop: '0.3rem',
-                                    }}
-                                  />
-                                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setEditingId(null)} style={s.btnSmall}>취소</button>
-                                    <button onClick={() => saveEdit(item)} style={{ ...s.btnSmall, background: 'linear-gradient(90deg, #636bff, #404dff)', color: '#fff', border: 'none' }}>저장</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <pre style={{
-                                  background: 'rgba(13, 18, 63, 0.94)',
-                                  color: '#d8ddff',
-                                  padding: '0.7rem',
-                                  borderRadius: 10,
-                                  fontSize: '0.78rem',
-                                  overflow: 'auto',
-                                  maxHeight: 200,
-                                  margin: '0.3rem 0 0',
-                                }}>
-                                  {JSON.stringify(item.config, null, 2)}
-                                </pre>
-                              )
-                            ) : (
-                              <div style={{ marginTop: '0.3rem' }} onClick={e => e.stopPropagation()}>
-                                <ConfigGui
-                                  config={guiDraftItemId === item.id ? guiDraft! : item.config}
-                                  onChange={(cfg) => handleGuiChange(item.id, cfg)}
-                                  mode="user"
-                                  appConfig={selectedAppDefault?.config}
-                                />
-                                {guiDraftItemId === item.id && (
-                                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', justifyContent: 'flex-end' }}>
-                                    <button onClick={discardGuiDraft} style={s.btnSmall}>취소</button>
-                                    <button onClick={saveGuiDraft} style={{ ...s.btnSmall, background: 'linear-gradient(90deg, #636bff, #404dff)', color: '#fff', border: 'none' }}>저장</button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </article>
     </div>
   );
 }
