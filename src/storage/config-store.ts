@@ -38,16 +38,9 @@ const CODE_DEFAULT_CONFIG: WidgetConfig = {
   toolConfigs: {},
 };
 
+/** Merge base config with overrides. Overrides replace base values. */
 function mergeConfig(base: WidgetConfig, overrides: Partial<WidgetConfig>): WidgetConfig {
-  const merged = { ...base, ...overrides };
-  // Ensure built-in context providers are always present
-  const overrideProviders = overrides.contextProviders ?? [];
-  const overrideProviderIds = new Set(overrideProviders.map(p => p.id));
-  merged.contextProviders = [
-    ...CODE_DEFAULT_CONFIG.contextProviders.filter(dp => !overrideProviderIds.has(dp.id)),
-    ...overrideProviders,
-  ];
-  return merged;
+  return { ...base, ...overrides };
 }
 
 // ---------------------------------------------------------------------------
@@ -83,18 +76,30 @@ export function loadConfig(): WidgetConfig {
 }
 
 /**
- * Async load – app-level global config only (no per-user overrides).
- *   1. App setting from DB  (app=X, user='default')
- *   2. Code defaults (fallback)
+ * Async load with base app inheritance:
+ *   1. CODE_DEFAULT_CONFIG (hardcoded fallback)
+ *   2. Base app config (app='default') — always loaded first
+ *   3. App-specific overrides — merged on top of base
+ *
+ * Other apps only need to store their differences from the base app.
  */
 export async function loadConfigAsync(app: string = 'default'): Promise<WidgetConfig> {
-  const appConfig = await fetchAppSettings(app);
-  if (!appConfig) return { ...CODE_DEFAULT_CONFIG };
-  return mergeConfig(CODE_DEFAULT_CONFIG, appConfig);
+  // 1. Load base app config (always)
+  const baseConfig = await fetchAppSettings('default');
+  const base = baseConfig ? mergeConfig(CODE_DEFAULT_CONFIG, baseConfig) : { ...CODE_DEFAULT_CONFIG };
+
+  // 2. If requesting the base app itself, done
+  if (app === 'default') return base;
+
+  // 3. Load app-specific overrides and merge on top of base
+  const appOverrides = await fetchAppSettings(app);
+  if (!appOverrides) return base;
+
+  return mergeConfig(base, appOverrides);
 }
 
 /**
- * Save app-level global config to Supabase.
+ * Save app-level config to Supabase.
  */
 export async function saveConfigAsync(config: WidgetConfig, app: string = 'default'): Promise<void> {
   try {

@@ -855,7 +855,7 @@ function SettingsSection() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
             <div>
               <h4 style={{ margin: 0, fontSize: '1rem', color: '#202753' }}>앱 목록</h4>
-              <p style={{ margin: '0.15rem 0 0', color: '#5d6698', fontSize: '0.8rem' }}>앱을 선택하면 기본 설정과 사용자 설정을 관리할 수 있습니다.</p>
+              <p style={{ margin: '0.15rem 0 0', color: '#5d6698', fontSize: '0.8rem' }}>베이스 앱(default)이 기본값이며, 다른 앱은 베이스 앱에서 변경사항만 저장합니다.</p>
             </div>
             <button onClick={() => { setShowNewApp(!showNewApp); }} style={s.btnAdd}>+ 새 앱 추가</button>
           </div>
@@ -895,23 +895,48 @@ function SettingsSection() {
             </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.6rem' }}>
-              {appDefaults.map(item => {
+              {/* Sort so 'default' base app always comes first */}
+              {[...appDefaults].sort((a, b) => a.app === 'default' ? -1 : b.app === 'default' ? 1 : 0).map(item => {
+                const isBase = item.app === 'default';
                 return (
                   <div
                     key={item.id}
                     onClick={() => { setSelectedApp(item.app); setStatusMsg(''); }}
                     style={{
-                      border: '1px solid rgba(16, 22, 59, 0.1)',
+                      border: isBase ? '2px solid rgba(99,107,255,0.5)' : '1px solid rgba(16, 22, 59, 0.1)',
                       borderRadius: 14,
                       padding: '1rem',
                       cursor: 'pointer',
-                      background: 'linear-gradient(155deg, #f9faff, #f0f2ff)',
+                      background: isBase
+                        ? 'linear-gradient(155deg, #eef0ff, #e0e4ff)'
+                        : 'linear-gradient(155deg, #f9faff, #f0f2ff)',
                       transition: 'box-shadow 0.15s, transform 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,107,255,0.18)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                     onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                   >
-                    <h5 style={{ margin: '0 0 0.4rem', fontSize: '1rem', color: '#202753' }}>{item.app}</h5>
+                    <h5 style={{ margin: '0 0 0.4rem', fontSize: '1rem', color: '#202753', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {item.app}
+                      {isBase && (
+                        <span style={{
+                          fontSize: '0.6rem', fontWeight: 700,
+                          background: 'linear-gradient(90deg, #636bff, #404dff)', color: '#fff',
+                          padding: '0.1rem 0.4rem', borderRadius: 999, textTransform: 'uppercase',
+                        }}>
+                          BASE
+                        </span>
+                      )}
+                    </h5>
+                    {isBase && (
+                      <p style={{ margin: '0 0 0.3rem', fontSize: '0.7rem', color: '#636bff', lineHeight: 1.3 }}>
+                        모든 앱의 기본 설정
+                      </p>
+                    )}
+                    {!isBase && (
+                      <p style={{ margin: '0 0 0.3rem', fontSize: '0.68rem', color: '#8f97c2', lineHeight: 1.3 }}>
+                        base(default)에서 상속
+                      </p>
+                    )}
                     {item.token && (
                       <div style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -1007,7 +1032,7 @@ function SettingsSection() {
                 padding: '0.15rem 0.5rem', borderRadius: 999, textTransform: 'uppercase',
                 verticalAlign: 'middle',
               }}>
-                APP DEFAULT
+                {selectedApp === 'default' ? 'BASE' : 'APP CONFIG'}
               </span>
               {selectedAppDefault?.token && (
                 <span style={{
@@ -1020,7 +1045,9 @@ function SettingsSection() {
               )}
             </h4>
             <p style={{ margin: '0 0 0.6rem', color: '#5d6698', fontSize: '0.8rem' }}>
-              이 앱의 기본 설정입니다. 모든 사용자가 이 설정을 기반으로 시작합니다.
+              {selectedApp === 'default'
+                ? '베이스 앱입니다. 여기서 설정한 값이 모든 앱의 기본값이 됩니다.'
+                : 'base(default) 앱을 상속합니다. 변경된 항목만 저장됩니다.'}
             </p>
           </div>
           {selectedAppDefault?.token && (
