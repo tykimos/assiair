@@ -765,10 +765,14 @@ function SettingsSection() {
     const item = settings.find(si => si.id === guiDraftItemId);
     if (!item) return;
     try {
+      // For non-base apps, save only the overrides (diff from base)
+      const configToSave = item.app !== 'default' && baseAppConfig
+        ? computeOverrides(guiDraft, baseAppConfig)
+        : guiDraft;
       await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app: item.app, user: item.user, config: guiDraft }),
+        body: JSON.stringify({ app: item.app, user: item.user, config: configToSave }),
       });
       setGuiDraft(null);
       setGuiDraftItemId(null);
@@ -786,7 +790,28 @@ function SettingsSection() {
 
   // Derive app list from settings with user='default'
   const appDefaults = settings.filter(item => item.user === 'default');
+  const baseAppItem = settings.find(item => item.app === 'default' && item.user === 'default');
+  const baseAppConfig = baseAppItem?.config ?? {};
   const selectedAppDefault = selectedApp ? settings.find(item => item.app === selectedApp && item.user === 'default') : null;
+  const isBaseApp = selectedApp === 'default';
+
+  // For non-base apps, compute merged config (base + overrides)
+  const mergedConfig = selectedAppDefault
+    ? isBaseApp
+      ? selectedAppDefault.config
+      : { ...baseAppConfig, ...(selectedAppDefault.config ?? {}) }
+    : null;
+
+  /** Compute only the fields that differ from base config */
+  const computeOverrides = (config: Record<string, unknown>, base: Record<string, unknown>): Record<string, unknown> => {
+    const overrides: Record<string, unknown> = {};
+    for (const key of Object.keys(config)) {
+      if (JSON.stringify(config[key]) !== JSON.stringify(base[key])) {
+        overrides[key] = config[key];
+      }
+    }
+    return overrides;
+  };
 
   const renderJsonEditor = (item: SettingsItem, label: string) => {
     const editing = editingId === item.id;
@@ -1064,12 +1089,13 @@ function SettingsSection() {
           )}
         </div>
         {selectedAppDefault ? (
-          viewMode === 'json' ? renderJsonEditor(selectedAppDefault, '기본 설정') : (
+          viewMode === 'json' ? renderJsonEditor(selectedAppDefault, isBaseApp ? '베이스 설정' : '앱 설정 (오버라이드)') : (
             <div>
               <ConfigGui
-                config={guiDraftItemId === selectedAppDefault.id ? guiDraft! : selectedAppDefault.config}
+                config={guiDraftItemId === selectedAppDefault.id ? guiDraft! : (mergedConfig ?? selectedAppDefault.config)}
                 onChange={(cfg) => handleGuiChange(selectedAppDefault.id, cfg)}
                 mode="admin"
+                baseConfig={isBaseApp ? undefined : baseAppConfig}
               />
               {guiDraftItemId === selectedAppDefault.id && (
                 <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>

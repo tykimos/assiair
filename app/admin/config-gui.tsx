@@ -20,16 +20,25 @@ const USER_TAB_IDS = new Set<GuiTab>(['general', 'skills', 'workflows', 'tools']
 type AnyConfig = Record<string, any>;
 
 interface ConfigGuiProps {
+  /** The full merged config to display */
   config: AnyConfig;
   onChange: (config: AnyConfig) => void;
   mode: 'admin' | 'user';
   appConfig?: AnyConfig;
+  /** Base app config — when provided, shows inheritance indicators & revert buttons */
+  baseConfig?: AnyConfig;
 }
 
 const defaults = getDefaultConfig();
 const BUILTIN_SKILLS = [...defaults.activeSkills];
 const BUILTIN_WORKFLOWS = [...defaults.activeWorkflows];
 const BUILTIN_TOOLS = [...defaults.activeTools];
+
+/** Check if a specific config field differs from the base */
+function isFieldOverridden(field: string, config: AnyConfig, baseConfig?: AnyConfig): boolean {
+  if (!baseConfig) return false;
+  return JSON.stringify(config[field]) !== JSON.stringify(baseConfig[field]);
+}
 
 /* ── inline styles ─────────────────────────────────────────────────── */
 
@@ -92,8 +101,14 @@ const gs = {
     padding: '0.08rem 0.3rem',
     borderRadius: 5,
     fontWeight: 600,
-    background: type === 'custom' ? 'rgba(139,92,246,0.08)' : 'rgba(59,130,246,0.08)',
-    color: type === 'custom' ? '#8b5cf6' : '#3b82f6',
+    background: type === 'custom' ? 'rgba(139,92,246,0.08)'
+      : type === 'overridden' ? 'rgba(245,158,11,0.1)'
+      : type === 'inherited' ? 'rgba(16,185,129,0.08)'
+      : 'rgba(59,130,246,0.08)',
+    color: type === 'custom' ? '#8b5cf6'
+      : type === 'overridden' ? '#d97706'
+      : type === 'inherited' ? '#059669'
+      : '#3b82f6',
     whiteSpace: 'nowrap',
   }),
 
@@ -162,6 +177,26 @@ const gs = {
     padding: '0.15rem 0.3rem',
     borderRadius: 4,
   } as React.CSSProperties,
+
+  revertBtn: {
+    border: 'none',
+    background: 'rgba(245,158,11,0.08)',
+    color: '#d97706',
+    cursor: 'pointer',
+    fontSize: '0.62rem',
+    fontWeight: 600,
+    padding: '0.12rem 0.35rem',
+    borderRadius: 4,
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
+
+  inheritBadge: {
+    fontSize: '0.58rem',
+    fontWeight: 600,
+    padding: '0.06rem 0.25rem',
+    borderRadius: 4,
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
 };
 
 /* ── Toggle ─────────────────────────────────────────────────────────── */
@@ -185,12 +220,210 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
+/* ── Override indicator + revert button ────────────────────────────── */
+
+function OverrideIndicator({ field, config, baseConfig, onRevert }: {
+  field: string;
+  config: AnyConfig;
+  baseConfig?: AnyConfig;
+  onRevert: (field: string) => void;
+}) {
+  if (!baseConfig) return null;
+  const overridden = isFieldOverridden(field, config, baseConfig);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6 }}>
+      <span style={{
+        ...gs.inheritBadge,
+        background: overridden ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.08)',
+        color: overridden ? '#d97706' : '#059669',
+      }}>
+        {overridden ? '변경됨' : '상속'}
+      </span>
+      {overridden && (
+        <button onClick={() => onRevert(field)} style={gs.revertBtn}>되돌리기</button>
+      )}
+    </span>
+  );
+}
+
+/* ── Expandable custom skill editor ────────────────────────────────── */
+
+function CustomSkillDetail({ skill, onChange, onDelete }: {
+  skill: AnyConfig;
+  onChange: (updated: AnyConfig) => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginTop: 2, marginBottom: 4 }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ cursor: 'pointer', fontSize: '0.7rem', color: '#636bff', marginLeft: 34, userSelect: 'none' }}
+      >
+        {expanded ? '▾ 상세 닫기' : '▸ 상세 보기'}
+      </div>
+      {expanded && (
+        <div style={{
+          marginLeft: 34, marginTop: 4, padding: '0.5rem',
+          background: 'rgba(99,107,255,0.02)', borderRadius: 8,
+          border: '1px solid rgba(99,107,255,0.1)',
+        }}>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>설명</label>
+            <input
+              value={skill.description || ''}
+              onChange={e => onChange({ ...skill, description: e.target.value })}
+              style={{ ...gs.miniInput, width: '100%' }}
+              placeholder="스킬 설명"
+            />
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>도구 (쉼표 구분)</label>
+            <input
+              value={(skill.tools || []).join(', ')}
+              onChange={e => onChange({ ...skill, tools: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })}
+              style={{ ...gs.miniInput, width: '100%' }}
+              placeholder="tool1, tool2"
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+            <div>
+              <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>Context Tokens</label>
+              <input
+                type="number"
+                value={skill.budget_context_tokens ?? 2000}
+                onChange={e => onChange({ ...skill, budget_context_tokens: Number(e.target.value) })}
+                style={{ ...gs.miniInput, width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>History Turns</label>
+              <input
+                type="number"
+                value={skill.budget_history_turns ?? 3}
+                onChange={e => onChange({ ...skill, budget_history_turns: Number(e.target.value) })}
+                style={{ ...gs.miniInput, width: '100%' }}
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>프롬프트</label>
+            <textarea
+              value={skill.prompt || ''}
+              onChange={e => onChange({ ...skill, prompt: e.target.value })}
+              style={{ ...gs.textarea, minHeight: 80 }}
+              placeholder="스킬 프롬프트 내용"
+            />
+          </div>
+          <button onClick={onDelete} style={{ ...gs.deleteBtn, fontSize: '0.72rem' }}>이 커스텀 스킬 삭제</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Expandable custom workflow editor ────────────────────────────── */
+
+function CustomWorkflowDetail({ workflow, onChange, onDelete }: {
+  workflow: AnyConfig;
+  onChange: (updated: AnyConfig) => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginTop: 2, marginBottom: 4 }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ cursor: 'pointer', fontSize: '0.7rem', color: '#636bff', marginLeft: 34, userSelect: 'none' }}
+      >
+        {expanded ? '▾ 상세 닫기' : '▸ 상세 보기'}
+      </div>
+      {expanded && (
+        <div style={{
+          marginLeft: 34, marginTop: 4, padding: '0.5rem',
+          background: 'rgba(99,107,255,0.02)', borderRadius: 8,
+          border: '1px solid rgba(99,107,255,0.1)',
+        }}>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>설명</label>
+            <input
+              value={workflow.description || ''}
+              onChange={e => onChange({ ...workflow, description: e.target.value })}
+              style={{ ...gs.miniInput, width: '100%' }}
+              placeholder="워크플로우 설명"
+            />
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>트리거 패턴 (쉼표 구분)</label>
+            <input
+              value={(workflow.trigger_patterns || []).join(', ')}
+              onChange={e => onChange({ ...workflow, trigger_patterns: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })}
+              style={{ ...gs.miniInput, width: '100%' }}
+              placeholder="패턴1, 패턴2"
+            />
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>흐름 (자연어)</label>
+            <textarea
+              value={workflow.steps_natural || ''}
+              onChange={e => onChange({ ...workflow, steps_natural: e.target.value })}
+              style={{ ...gs.textarea, minHeight: 60 }}
+              placeholder="예: greeting 후 report-summary 실행"
+            />
+          </div>
+          <button onClick={onDelete} style={{ ...gs.deleteBtn, fontSize: '0.72rem' }}>이 커스텀 워크플로우 삭제</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Expandable custom tool editor ────────────────────────────────── */
+
+function CustomToolDetail({ tool, onChange, onDelete }: {
+  tool: AnyConfig;
+  onChange: (updated: AnyConfig) => void;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginTop: 2, marginBottom: 4 }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ cursor: 'pointer', fontSize: '0.7rem', color: '#636bff', marginLeft: 34, userSelect: 'none' }}
+      >
+        {expanded ? '▾ 상세 닫기' : '▸ 상세 보기'}
+      </div>
+      {expanded && (
+        <div style={{
+          marginLeft: 34, marginTop: 4, padding: '0.5rem',
+          background: 'rgba(99,107,255,0.02)', borderRadius: 8,
+          border: '1px solid rgba(99,107,255,0.1)',
+        }}>
+          <div style={{ marginBottom: 6 }}>
+            <label style={{ fontSize: '0.7rem', color: '#5d6698', display: 'block', marginBottom: 2 }}>설명</label>
+            <input
+              value={tool.description || ''}
+              onChange={e => onChange({ ...tool, description: e.target.value })}
+              style={{ ...gs.miniInput, width: '100%' }}
+              placeholder="도구 설명"
+            />
+          </div>
+          <button onClick={onDelete} style={{ ...gs.deleteBtn, fontSize: '0.72rem' }}>이 커스텀 도구 삭제</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main component ─────────────────────────────────────────────────── */
 
-export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps) {
+export function ConfigGui({ config, onChange, mode, appConfig, baseConfig }: ConfigGuiProps) {
   const [tab, setTab] = useState<GuiTab>('general');
   const [addingType, setAddingType] = useState<string | null>(null);
   const [newItemId, setNewItemId] = useState('');
+
+  const hasBase = !!baseConfig;
 
   const visibleTabs = mode === 'user'
     ? ALL_TABS.filter(t => USER_TAB_IDS.has(t.id))
@@ -205,6 +438,12 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
   const customTools: AnyConfig[] = config.customTools ?? [];
   const triggers: AnyConfig[] = config.triggers ?? defaults.triggers;
 
+  // Revert a field back to base value
+  const revertField = (field: string) => {
+    if (!baseConfig) return;
+    onChange({ ...config, [field]: baseConfig[field] });
+  };
+
   // Derive all available items to display
   function deriveAvailable(
     builtins: string[],
@@ -214,12 +453,10 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
     srcConfig?: AnyConfig,
   ): string[] {
     if (mode === 'user' && srcConfig) {
-      // User sees ONLY items that are active in the app default config
       const activeField = idField === 'skill_id' ? 'activeSkills' : idField === 'name' ? 'activeWorkflows' : 'activeTools';
       const appActive = (srcConfig[activeField] || builtins) as string[];
       return [...appActive];
     }
-    // Admin sees builtins + current custom
     const customIds = customList.map((c: AnyConfig) => c[idField] as string);
     return [...new Set([...builtins, ...activeList, ...customIds])];
   }
@@ -280,7 +517,47 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
     onChange(cfg);
   };
 
-  // Render a toggle list for skills/workflows/tools
+  // Update a custom skill
+  const updateCustomSkill = (skillId: string, updated: AnyConfig) => {
+    const cfg = { ...config };
+    cfg.customSkills = customSkills.map((s: AnyConfig) =>
+      s.skill_id === skillId ? updated : s
+    );
+    onChange(cfg);
+  };
+
+  // Update a custom workflow
+  const updateCustomWorkflow = (name: string, updated: AnyConfig) => {
+    const cfg = { ...config };
+    cfg.customWorkflows = customWorkflows.map((w: AnyConfig) =>
+      w.name === name ? updated : w
+    );
+    onChange(cfg);
+  };
+
+  // Update a custom tool
+  const updateCustomTool = (toolId: string, updated: AnyConfig) => {
+    const cfg = { ...config };
+    cfg.customTools = customTools.map((t: AnyConfig) =>
+      t.id === toolId ? updated : t
+    );
+    onChange(cfg);
+  };
+
+  // Check if a list field (activeSkills, etc.) has item-level differences from base
+  const isItemDiffFromBase = (field: string, item: string): 'same' | 'added' | 'removed' => {
+    if (!baseConfig) return 'same';
+    const baseList: string[] = baseConfig[field] ?? [];
+    const curList: string[] = config[field] ?? [];
+    const inBase = baseList.includes(item);
+    const inCur = curList.includes(item);
+    if (inBase && inCur) return 'same';
+    if (!inBase && inCur) return 'added';
+    if (inBase && !inCur) return 'removed';
+    return 'same';
+  };
+
+  // Render a toggle list for skills/workflows/tools with inheritance info
   const renderList = (
     items: string[],
     activeList: string[],
@@ -290,20 +567,73 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
     customList: AnyConfig[],
   ) => {
     const customIds = new Set(customList.map((c: AnyConfig) => c[customIdField] as string));
+    const fieldOverridden = hasBase && isFieldOverridden(field, config, baseConfig);
+
     return (
       <>
-        {items.map(item => (
-          <div key={item} style={gs.toggleRow}>
-            <Toggle on={activeList.includes(item)} onToggle={() => toggleItem(field, activeList, item)} />
-            <span style={gs.label}>{item}</span>
-            <span style={gs.badge(customIds.has(item) ? 'custom' : 'builtin')}>
-              {customIds.has(item) ? 'Custom' : 'Built-in'}
+        {/* Field-level override indicator */}
+        {hasBase && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, fontSize: '0.7rem' }}>
+            <span style={{
+              ...gs.inheritBadge,
+              background: fieldOverridden ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.08)',
+              color: fieldOverridden ? '#d97706' : '#059669',
+            }}>
+              {fieldOverridden ? '변경됨 (base와 다름)' : '상속 (base와 동일)'}
             </span>
-            {mode === 'admin' && customIds.has(item) && (
-              <button onClick={() => deleteItem(type, item)} style={gs.deleteBtn}>삭제</button>
+            {fieldOverridden && (
+              <button onClick={() => revertField(field)} style={gs.revertBtn}>base로 되돌리기</button>
             )}
           </div>
-        ))}
+        )}
+
+        {items.map(item => {
+          const diff = isItemDiffFromBase(field, item);
+          return (
+            <React.Fragment key={item}>
+              <div style={{
+                ...gs.toggleRow,
+                background: diff === 'added' ? 'rgba(245,158,11,0.04)' : diff === 'removed' ? 'rgba(239,68,68,0.04)' : undefined,
+              }}>
+                <Toggle on={activeList.includes(item)} onToggle={() => toggleItem(field, activeList, item)} />
+                <span style={gs.label}>{item}</span>
+                {hasBase && diff !== 'same' && (
+                  <span style={gs.badge(diff === 'added' ? 'overridden' : 'custom')}>
+                    {diff === 'added' ? '추가됨' : '제거됨'}
+                  </span>
+                )}
+                <span style={gs.badge(customIds.has(item) ? 'custom' : 'builtin')}>
+                  {customIds.has(item) ? 'Custom' : 'Built-in'}
+                </span>
+                {mode === 'admin' && customIds.has(item) && (
+                  <button onClick={() => deleteItem(type, item)} style={gs.deleteBtn}>삭제</button>
+                )}
+              </div>
+              {/* Show expandable detail for custom items */}
+              {mode === 'admin' && customIds.has(item) && type === 'skill' && (
+                <CustomSkillDetail
+                  skill={customList.find((s: AnyConfig) => s[customIdField] === item)!}
+                  onChange={(updated) => updateCustomSkill(item, updated)}
+                  onDelete={() => deleteItem(type, item)}
+                />
+              )}
+              {mode === 'admin' && customIds.has(item) && type === 'workflow' && (
+                <CustomWorkflowDetail
+                  workflow={customList.find((w: AnyConfig) => w[customIdField] === item)!}
+                  onChange={(updated) => updateCustomWorkflow(item, updated)}
+                  onDelete={() => deleteItem(type, item)}
+                />
+              )}
+              {mode === 'admin' && customIds.has(item) && type === 'tool' && (
+                <CustomToolDetail
+                  tool={customList.find((t: AnyConfig) => t[customIdField] === item)!}
+                  onChange={(updated) => updateCustomTool(item, updated)}
+                  onDelete={() => deleteItem(type, item)}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
         {mode === 'admin' && (
           addingType === type ? (
             <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem', alignItems: 'center' }}>
@@ -333,22 +663,63 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
     <div>
       {/* Tab bar */}
       <div style={gs.tabBar}>
-        {visibleTabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setAddingType(null); }} style={gs.tab(tab === t.id)}>
-            {t.label}
-          </button>
-        ))}
+        {visibleTabs.map(t => {
+          // Show dot indicator if tab has overrides
+          const tabOverrideFields: Record<GuiTab, string[]> = {
+            general: ['maxPlanSteps', 'maxChainDepth', 'theme'],
+            skills: ['activeSkills', 'customSkills'],
+            workflows: ['activeWorkflows', 'customWorkflows'],
+            tools: ['activeTools', 'customTools'],
+            prompts: ['systemPrompt', 'executorPrompt'],
+            triggers: ['triggers'],
+          };
+          const hasOverride = hasBase && tabOverrideFields[t.id]?.some(f => isFieldOverridden(f, config, baseConfig));
+          return (
+            <button key={t.id} onClick={() => { setTab(t.id); setAddingType(null); }} style={{
+              ...gs.tab(tab === t.id),
+              position: 'relative',
+            }}>
+              {t.label}
+              {hasOverride && (
+                <span style={{
+                  position: 'absolute', top: 2, right: 2,
+                  width: 5, height: 5, borderRadius: '50%',
+                  background: '#f59e0b',
+                }} />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* General */}
       {tab === 'general' && (
         <>
           <div style={gs.section}>
-            <div style={gs.sectionTitle}>오케스트레이터</div>
+            <div style={gs.sectionTitle}>
+              <span>오케스트레이터</span>
+              {hasBase && (isFieldOverridden('maxPlanSteps', config, baseConfig) || isFieldOverridden('maxChainDepth', config, baseConfig)) && (
+                <span style={{ display: 'flex', gap: 4 }}>
+                  <span style={{ ...gs.inheritBadge, background: 'rgba(245,158,11,0.1)', color: '#d97706' }}>변경됨</span>
+                </span>
+              )}
+            </div>
             <div style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontSize: '0.76rem', color: '#5d6698' }}>Max Plan Steps</span>
-                <strong style={{ fontSize: '0.76rem', color: '#636bff' }}>{config.maxPlanSteps ?? defaults.maxPlanSteps}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                <span style={{ fontSize: '0.76rem', color: '#5d6698' }}>
+                  Max Plan Steps
+                  {hasBase && isFieldOverridden('maxPlanSteps', config, baseConfig) && (
+                    <span style={{ fontSize: '0.65rem', color: '#8f97c2', marginLeft: 6 }}>
+                      (base: {baseConfig!.maxPlanSteps ?? defaults.maxPlanSteps})
+                    </span>
+                  )}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <strong style={{ fontSize: '0.76rem', color: '#636bff' }}>{config.maxPlanSteps ?? defaults.maxPlanSteps}</strong>
+                  {hasBase && isFieldOverridden('maxPlanSteps', config, baseConfig) && (
+                    <button onClick={() => revertField('maxPlanSteps')} style={gs.revertBtn}>되돌리기</button>
+                  )}
+                </span>
               </div>
               <input
                 type="range" min={1} max={10}
@@ -358,9 +729,21 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
               />
             </div>
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontSize: '0.76rem', color: '#5d6698' }}>Max Chain Depth</span>
-                <strong style={{ fontSize: '0.76rem', color: '#8b5cf6' }}>{config.maxChainDepth ?? defaults.maxChainDepth}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                <span style={{ fontSize: '0.76rem', color: '#5d6698' }}>
+                  Max Chain Depth
+                  {hasBase && isFieldOverridden('maxChainDepth', config, baseConfig) && (
+                    <span style={{ fontSize: '0.65rem', color: '#8f97c2', marginLeft: 6 }}>
+                      (base: {baseConfig!.maxChainDepth ?? defaults.maxChainDepth})
+                    </span>
+                  )}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <strong style={{ fontSize: '0.76rem', color: '#8b5cf6' }}>{config.maxChainDepth ?? defaults.maxChainDepth}</strong>
+                  {hasBase && isFieldOverridden('maxChainDepth', config, baseConfig) && (
+                    <button onClick={() => revertField('maxChainDepth')} style={gs.revertBtn}>되돌리기</button>
+                  )}
+                </span>
               </div>
               <input
                 type="range" min={1} max={10}
@@ -372,7 +755,10 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
           </div>
 
           <div style={gs.section}>
-            <div style={gs.sectionTitle}>테마</div>
+            <div style={gs.sectionTitle}>
+              <span>테마</span>
+              <OverrideIndicator field="theme" config={config} baseConfig={baseConfig} onRevert={revertField} />
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
               {[
                 { id: 'light', label: 'Light', c: ['#fafafa', '#6366f1', '#8b5cf6'] },
@@ -381,14 +767,16 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
                 { id: 'dark', label: 'Dark', c: ['#0f172a', '#818cf8', '#a78bfa'] },
               ].map(t => {
                 const active = (config.theme || 'light') === t.id;
+                const isBaseTheme = hasBase && (baseConfig!.theme || 'light') === t.id && !active;
                 return (
                   <button
                     key={t.id}
                     onClick={() => onChange({ ...config, theme: t.id })}
                     style={{
-                      border: active ? `2px solid ${t.c[1]}` : '2px solid rgba(17,21,50,0.08)',
+                      border: active ? `2px solid ${t.c[1]}` : isBaseTheme ? '2px dashed rgba(16,185,129,0.4)' : '2px solid rgba(17,21,50,0.08)',
                       borderRadius: 8, padding: '0.35rem', cursor: 'pointer',
                       background: active ? 'rgba(99,107,255,0.05)' : '#fff', textAlign: 'center',
+                      position: 'relative',
                     }}
                   >
                     <div style={{
@@ -400,6 +788,9 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.c[2] }} />
                     </div>
                     <span style={{ fontSize: '0.65rem', fontWeight: 600, color: active ? t.c[1] : '#5d6698' }}>{t.label}</span>
+                    {isBaseTheme && (
+                      <span style={{ display: 'block', fontSize: '0.5rem', color: '#059669' }}>base</span>
+                    )}
                   </button>
                 );
               })}
@@ -445,7 +836,19 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
       {tab === 'prompts' && mode === 'admin' && (
         <>
           <div style={gs.section}>
-            <div style={gs.sectionTitle}>시스템 프롬프트 (Orchestrator)</div>
+            <div style={gs.sectionTitle}>
+              <span>시스템 프롬프트 (Orchestrator)</span>
+              <OverrideIndicator field="systemPrompt" config={config} baseConfig={baseConfig} onRevert={revertField} />
+            </div>
+            {hasBase && isFieldOverridden('systemPrompt', config, baseConfig) && baseConfig!.systemPrompt && (
+              <div style={{
+                fontSize: '0.7rem', color: '#8f97c2', marginBottom: 4,
+                padding: '0.3rem 0.5rem', background: 'rgba(16,185,129,0.04)',
+                borderRadius: 6, border: '1px dashed rgba(16,185,129,0.2)',
+              }}>
+                base: {(baseConfig!.systemPrompt as string).slice(0, 100)}{(baseConfig!.systemPrompt as string).length > 100 ? '...' : ''}
+              </div>
+            )}
             <textarea
               value={config.systemPrompt ?? ''}
               onChange={e => onChange({ ...config, systemPrompt: e.target.value })}
@@ -454,7 +857,19 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
             />
           </div>
           <div style={gs.section}>
-            <div style={gs.sectionTitle}>실행기 프롬프트 (Executor)</div>
+            <div style={gs.sectionTitle}>
+              <span>실행기 프롬프트 (Executor)</span>
+              <OverrideIndicator field="executorPrompt" config={config} baseConfig={baseConfig} onRevert={revertField} />
+            </div>
+            {hasBase && isFieldOverridden('executorPrompt', config, baseConfig) && baseConfig!.executorPrompt && (
+              <div style={{
+                fontSize: '0.7rem', color: '#8f97c2', marginBottom: 4,
+                padding: '0.3rem 0.5rem', background: 'rgba(16,185,129,0.04)',
+                borderRadius: 6, border: '1px dashed rgba(16,185,129,0.2)',
+              }}>
+                base: {(baseConfig!.executorPrompt as string).slice(0, 100)}{(baseConfig!.executorPrompt as string).length > 100 ? '...' : ''}
+              </div>
+            )}
             <textarea
               value={config.executorPrompt ?? ''}
               onChange={e => onChange({ ...config, executorPrompt: e.target.value })}
@@ -470,29 +885,45 @@ export function ConfigGui({ config, onChange, mode, appConfig }: ConfigGuiProps)
         <div style={gs.section}>
           <div style={gs.sectionTitle}>
             <span>트리거 설정</span>
-            <span style={gs.count}>{triggers.filter((t: AnyConfig) => t.enabled).length}/{triggers.length} 활성</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={gs.count}>{triggers.filter((t: AnyConfig) => t.enabled).length}/{triggers.length} 활성</span>
+              <OverrideIndicator field="triggers" config={config} baseConfig={baseConfig} onRevert={revertField} />
+            </span>
           </div>
-          {triggers.map((trigger: AnyConfig, idx: number) => (
-            <div key={trigger.id || idx} style={gs.toggleRow}>
-              <Toggle
-                on={!!trigger.enabled}
-                onToggle={() => {
-                  const updated = triggers.map((t: AnyConfig, i: number) =>
-                    i === idx ? { ...t, enabled: !t.enabled } : t
-                  );
-                  onChange({ ...config, triggers: updated });
-                }}
-              />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '0.82rem', color: '#23284f', display: 'block' }}>
-                  {trigger.label || trigger.id}
-                </span>
-                {trigger.description && (
-                  <span style={{ fontSize: '0.7rem', color: '#8f97c2' }}>{trigger.description}</span>
-                )}
+          {triggers.map((trigger: AnyConfig, idx: number) => {
+            // Check if this trigger differs from base
+            const baseTrigger = hasBase ? (baseConfig!.triggers as AnyConfig[] ?? []).find((bt: AnyConfig) => bt.id === trigger.id) : null;
+            const triggerDiff = baseTrigger ? trigger.enabled !== baseTrigger.enabled : false;
+            return (
+              <div key={trigger.id || idx} style={{
+                ...gs.toggleRow,
+                background: triggerDiff ? 'rgba(245,158,11,0.04)' : undefined,
+              }}>
+                <Toggle
+                  on={!!trigger.enabled}
+                  onToggle={() => {
+                    const updated = triggers.map((t: AnyConfig, i: number) =>
+                      i === idx ? { ...t, enabled: !t.enabled } : t
+                    );
+                    onChange({ ...config, triggers: updated });
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.82rem', color: '#23284f', display: 'block' }}>
+                    {trigger.label || trigger.id}
+                    {triggerDiff && (
+                      <span style={{ ...gs.inheritBadge, marginLeft: 6, background: 'rgba(245,158,11,0.1)', color: '#d97706' }}>
+                        변경됨 (base: {baseTrigger!.enabled ? 'ON' : 'OFF'})
+                      </span>
+                    )}
+                  </span>
+                  {trigger.description && (
+                    <span style={{ fontSize: '0.7rem', color: '#8f97c2' }}>{trigger.description}</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
