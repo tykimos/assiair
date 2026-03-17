@@ -27,9 +27,9 @@ const CODE_DEFAULT_CONFIG: WidgetConfig = {
       id: 'url-token',
       type: 'url_params' as const,
       label: 'URL 토큰',
-      description: 'URL 파라미터에서 app_token, user_token, app, user를 캡처',
+      description: 'URL 파라미터에서 app_token을 캡처',
       enabled: true,
-      captureKeys: ['app_token', 'user_token', 'app', 'user'],
+      captureKeys: ['app_token', 'app'],
       keyMapping: {},
     },
   ],
@@ -37,9 +37,6 @@ const CODE_DEFAULT_CONFIG: WidgetConfig = {
   customAllowedDomains: [],
   toolConfigs: {},
 };
-
-/** Built-in context provider IDs that must always be present. */
-const BUILTIN_PROVIDER_IDS = new Set(CODE_DEFAULT_CONFIG.contextProviders.map(p => p.id));
 
 function mergeConfig(base: WidgetConfig, overrides: Partial<WidgetConfig>): WidgetConfig {
   const merged = { ...base, ...overrides };
@@ -57,9 +54,9 @@ function mergeConfig(base: WidgetConfig, overrides: Partial<WidgetConfig>): Widg
 // Supabase API helpers
 // ---------------------------------------------------------------------------
 
-async function fetchSettingsFromApi(app: string, user: string): Promise<Partial<WidgetConfig> | null> {
+async function fetchAppSettings(app: string): Promise<Partial<WidgetConfig> | null> {
   try {
-    const res = await fetch(`/api/settings?app=${encodeURIComponent(app)}&user=${encodeURIComponent(user)}`);
+    const res = await fetch(`/api/settings?app=${encodeURIComponent(app)}&user=default`);
     if (!res.ok) return null;
     const { data } = await res.json();
     return (data?.config as Partial<WidgetConfig>) ?? null;
@@ -86,54 +83,31 @@ export function loadConfig(): WidgetConfig {
 }
 
 /**
- * Async load with hierarchy:
- *   1. User-specific setting  (app=X, user=Y)
- *   2. App default setting    (app=X, user='default')
- *   3. Code defaults
- *
- * User config is merged ON TOP OF app default, so admin-set defaults
- * are always the base and users only override what they change.
+ * Async load – app-level global config only (no per-user overrides).
+ *   1. App setting from DB  (app=X, user='default')
+ *   2. Code defaults (fallback)
  */
-export async function loadConfigAsync(app: string = 'default', user: string = 'anonymous'): Promise<WidgetConfig> {
-  // 1. Load app default (admin-managed)
-  const appDefault = await fetchSettingsFromApi(app, 'default');
-  const base = appDefault ? mergeConfig(CODE_DEFAULT_CONFIG, appDefault) : { ...CODE_DEFAULT_CONFIG };
-
-  // 2. If this IS the default user query, we're done
-  if (user === 'default') return base;
-
-  // 3. Load user-specific overrides
-  const userOverrides = await fetchSettingsFromApi(app, user);
-  if (!userOverrides) return base;
-
-  return mergeConfig(base, userOverrides);
+export async function loadConfigAsync(app: string = 'default'): Promise<WidgetConfig> {
+  const appConfig = await fetchAppSettings(app);
+  if (!appConfig) return { ...CODE_DEFAULT_CONFIG };
+  return mergeConfig(CODE_DEFAULT_CONFIG, appConfig);
 }
 
 /**
- * Save user-specific config to Supabase.
+ * Save app-level global config to Supabase.
  */
-export async function saveConfigAsync(config: WidgetConfig, app: string = 'default', user: string = 'anonymous'): Promise<void> {
+export async function saveConfigAsync(config: WidgetConfig, app: string = 'default'): Promise<void> {
   try {
     await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app, user, config }),
+      body: JSON.stringify({ app, user: 'default', config }),
     });
   } catch {
     console.warn('[ConfigStore] Failed to save config to Supabase');
   }
 }
 
-/**
- * Save app-level default config (admin use).
- */
-export async function saveDefaultConfigAsync(config: WidgetConfig, app: string = 'default'): Promise<void> {
-  return saveConfigAsync(config, app, 'default');
-}
-
 export function getDefaultConfig(): WidgetConfig {
   return { ...CODE_DEFAULT_CONFIG };
 }
-
-// Suppress unused lint
-void BUILTIN_PROVIDER_IDS;

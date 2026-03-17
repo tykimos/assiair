@@ -205,9 +205,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   // Session & identity tracking — use URL param if provided, otherwise generate
   const sessionIdRef = useRef<string>(getUrlParam('session_id') || `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const appTokenRef = useRef<string | null>(getUrlParam('app_token'));
-  const userTokenRef = useRef<string | null>(getUrlParam('user_token'));
   const appRef = useRef<string>(getUrlParam('app') || 'default');
-  const userRef = useRef<string>(getUrlParam('user') || 'anonymous');
   // Start with empty active lists so Settings UI shows nothing until DB loads
   const [appDefaultConfig, setAppDefaultConfig] = useState<WidgetConfig>({
     ...getCodeDefaults(),
@@ -257,14 +255,14 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       });
     }
 
-    // Resolve app_token / user_token → app + user, then load config
+    // Resolve app_token → app name, then load app-level global config
     const loadFromDb = async () => {
       // Check if any token or app identifier is provided
-      const hasAnyToken = !!(appTokenRef.current || userTokenRef.current || getUrlParam('app'));
+      const hasAnyToken = !!(appTokenRef.current || getUrlParam('app'));
       setHasValidToken(hasAnyToken);
       if (!hasAnyToken) return;
 
-      // 1. Resolve app_token first (determines which app)
+      // Resolve app_token → app name
       if (appTokenRef.current) {
         try {
           const res = await fetch(`/api/settings?app_token=${encodeURIComponent(appTokenRef.current)}`);
@@ -274,23 +272,12 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
           }
         } catch { /* fall through */ }
       }
-      // 2. Resolve user_token (determines which user; also sets app if no app_token)
-      if (userTokenRef.current) {
-        try {
-          const res = await fetch(`/api/settings?user_token=${encodeURIComponent(userTokenRef.current)}`);
-          if (res.ok) {
-            const { data } = await res.json();
-            if (!appTokenRef.current && data?.app) appRef.current = data.app;
-            if (data?.user) userRef.current = data.user;
-          }
-        } catch { /* fall through */ }
-      }
-      // Load app default config (admin-managed baseline)
-      const appDefConfig = await loadConfigAsync(appRef.current, 'default');
-      setAppDefaultConfig(appDefConfig);
+
+      // Load app-level global config
+      const dbConfig = await loadConfigAsync(appRef.current);
+      setAppDefaultConfig(dbConfig);
       setAppDefaultConfigLoaded(true);
 
-      const dbConfig = await loadConfigAsync(appRef.current, userRef.current);
       if (props.initialConfig) Object.assign(dbConfig, props.initialConfig);
       dispatch({ type: 'SET_CONFIG', config: dbConfig });
 
@@ -705,7 +692,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
       saveSessionToDb({
         session_id: sessionIdRef.current,
         app: appRef.current,
-        user: userRef.current,
+        user: 'default',
         messages: messagesRef.current,
         config_snapshot: state.config,
         logs: state.logs.slice(-200),
@@ -891,7 +878,7 @@ export function WidgetProvider({ children, props }: { children: React.ReactNode;
   const updateConfig = useCallback((updates: Partial<WidgetConfig>) => {
     const newConfig = { ...state.config, ...updates };
     dispatch({ type: 'SET_CONFIG', config: newConfig });
-    saveConfigAsync(newConfig, appRef.current, userRef.current).catch(() => { /* silent */ });
+    saveConfigAsync(newConfig, appRef.current).catch(() => { /* silent */ });
 
     // Sync skill registry activeSkills
     if (updates.activeSkills) {
